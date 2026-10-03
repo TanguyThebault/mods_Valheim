@@ -109,9 +109,10 @@ namespace ThrowingAxe
             copy.transform.localPosition = Vector3.zero;
             copy.transform.localRotation = Quaternion.identity;
             copy.transform.localScale = _handItem.transform.lossyScale;
-            foreach (var c in copy.GetComponentsInChildren<Collider>(true)) DestroyImmediate(c);
-            foreach (var rb in copy.GetComponentsInChildren<Rigidbody>(true)) DestroyImmediate(rb);
-            foreach (var mb in copy.GetComponentsInChildren<MonoBehaviour>(true)) DestroyImmediate(mb);
+            // Setup runs inside an animation event, where DestroyImmediate is refused: disable now, destroy later.
+            foreach (var c in copy.GetComponentsInChildren<Collider>(true)) { c.enabled = false; Destroy(c); }
+            foreach (var rb in copy.GetComponentsInChildren<Rigidbody>(true)) { rb.isKinematic = true; rb.detectCollisions = false; Destroy(rb); }
+            foreach (var mb in copy.GetComponentsInChildren<MonoBehaviour>(true)) { mb.enabled = false; Destroy(mb); }
 
             // Lay it flat: the thinnest axis of the model (blade thickness) points up, and spin around the
             // model's centre rather than the grip.

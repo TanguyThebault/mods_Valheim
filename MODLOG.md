@@ -80,3 +80,16 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
 - RabbitMeatCooked (clone de CookedDeerMeat) : 22 PV, 18 endurance, 1200 s, régén 2. Broche 20 s.
 - Icônes : RenderManager.Render(prefab, IsometricRotation) sur les clones teintés.
 - Le log dumpe Hare, DeerHide, DeerMeat et CookedDeerMeat (composants, IA, matériaux, drops) pour ajuster.
+
+## Test 3 (v0.3) : échec, puis v0.3.1
+- `spawn Rabbit` / `spawn RabbitMeat` ne faisaient rien. Log : "Failed to clone prefab, name already exists:
+  RabbitMeat", puis NullReferenceException dans RegisterItems, qui interrompt tout l'enregistrement des lapins.
+  **Le jeu vanilla contient déjà un prefab RabbitMeat.** Prefabs renommés : MeadowRabbit, MeadowRabbitHide,
+  MeadowRabbitMeat, MeadowRabbitCooked.
+- Dump du Hare : AnimalAI, santé 10, AnimalsVeg, marche 1, vitesse 4, course 7, virages 200/300,
+  accél 0.9, vue 25, ouïe 15, fuite 25/45/2, errance 11 s/20 m. Drops HareMeat, ScaleHide 1-3, TrophyHare 5 %.
+  Matériau Hare_mat (Custom/Creature, _Color blanc), donc la teinte multiplicative fonctionne.
+- SpeedFactor passé à 1.35 (course 9.45). Attention : Config.Bind garde la valeur déjà présente dans le .cfg,
+  il faut donc aussi modifier le .cfg quand on change une valeur par défaut.
+- Hache : DestroyImmediate est refusé dans un événement d'animation (Setup est appelé depuis l'event
+  d'attaque). Remplacé par disable + Destroy.

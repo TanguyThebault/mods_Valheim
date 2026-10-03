@@ -16,10 +16,10 @@ namespace ThrowingAxe
     /// </summary>
     internal static class Rabbits
     {
-        public const string CreaturePrefab = "Rabbit";
-        public const string HidePrefab = "RabbitHide";
-        public const string MeatPrefab = "RabbitMeat";
-        public const string CookedPrefab = "RabbitMeatCooked";
+        public const string CreaturePrefab = "MeadowRabbit";
+        public const string HidePrefab = "MeadowRabbitHide";
+        public const string MeatPrefab = "MeadowRabbitMeat";
+        public const string CookedPrefab = "MeadowRabbitCooked";
 
         private static ConfigEntry<Color> s_furTint;
         private static ConfigEntry<float> s_scale;
@@ -32,7 +32,7 @@ namespace ThrowingAxe
             s_furTint = config.Bind("Rabbit", "FurTint", new Color(0.62f, 0.47f, 0.33f, 1f),
                 "Colour multiplied into the hare's materials (restart to apply).");
             s_scale = config.Bind("Rabbit", "Scale", 0.85f, "Size relative to the vanilla hare (restart).");
-            s_speedFactor = config.Bind("Rabbit", "SpeedFactor", 1.2f, "Run speed relative to the vanilla hare (restart).");
+            s_speedFactor = config.Bind("Rabbit", "SpeedFactor", 1.35f, "Run speed relative to the vanilla hare (restart).");
             s_spawnChance = config.Bind("Rabbit", "SpawnChance", 40f, "Spawn chance per spawn check, % (restart).");
             s_maxSpawned = config.Bind("Rabbit", "MaxSpawned", 3, "Max rabbits around a player (restart).");
         }
@@ -152,7 +152,7 @@ namespace ThrowingAxe
             config.AddDropConfig(new DropConfig { Item = MeatPrefab, Chance = 100f, MinAmount = 1, MaxAmount = 2, LevelMultiplier = true });
             config.AddSpawnConfig(new SpawnConfig
             {
-                Name = "Rabbit_Meadows",
+                Name = "MeadowRabbit_Meadows",
                 Biome = Heightmap.Biome.Meadows,
                 SpawnChance = s_spawnChance.Value,
                 SpawnInterval = 90f,
