@@ -164,3 +164,33 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
   l'install du joueur au build, jamais committés.
 - En jeu : masque (sparrow_colors.png à côté du DLL) x ombrage du crow (luminance normalisée, 0.75-1.25).
   Repli sur le dégradé brun si le masque manque. Référence ImageConversionModule pour LoadImage.
+
+## v0.7 : renards, set de chaman, moineaux sans bleu, lapins plus petits
+- Moineaux : plus de bleu (calotte gris-brun, rémiges et bouts d'ailes brun foncé), poitrine rouge gardée.
+- Lapins : échelle 0.85 -> 0.75 (modifiée aussi dans le .cfg existant).
+- Renard MeadowFox : CustomCreature clone de Wolf (MonsterAI), échelle 0.5, teinte rousse, Tameable et
+  Procreation supprimés, santé 20, course 9 (lapin 9.45 avec zigzag), m_attackPlayerObjects false,
+  m_fleeIfLowHealth 0.4, sans hurlement (m_idleSound vidé). Morsure : chaque m_defaultItems est cloné
+  (MeadowFox_<nom>) et ses dégâts ramenés à BiteDamage (8) ; les loups gardent les leurs. Spawn Prairies,
+  20 %, toutes les 240 s, max 1.
+- Ennemis : la faction AnimalsVeg est ennemie de tout (switch de BaseAI.IsEnemy), donc postfix sur IsEnemy.
+  Pour un renard : ennemi = lapin, ou celui qui l'a frappé dans les 20 s (MonsterAI abandonne une cible
+  non ennemie, ligne 300, d'où la mémoire de provocation, prefix sur MonsterAI.OnDamaged). Pour un lapin,
+  le renard est un ennemi, donc il le fuit. Les autres gardent la réponse vanilla : le joueur peut chasser
+  le renard.
+- Renard pas provoqué et joueur à moins de KeepAwayDistance (10 m) : postfix sur MonsterAI.UpdateAI qui
+  appelle BaseAI.Flee (le dernier MoveTo l'emporte).
+- Registres statiques RabbitTag.All et FoxTag.All (HashSet<Character>) : pas de GetComponent dans IsEnemy.
+- Butin : MeadowFoxMeat (clone de WolfMeat), MeadowFoxCooked (clone de CookedWolfMeat : 28 PV, 10 endurance,
+  1200 s, broche 25 s), MeadowFoxPelt (clone de WolfPelt, sinon DeerHide, teinté).
+- Coiffe MeadowFoxHeaddress : clone de HelmetBronze dont l'enfant `attach` est remplacé par celui de
+  TrophyWolf. Le maillage du trophée est **lisible** (UnityPy m_IsReadable True) : triangles de la mâchoire
+  supprimés en jeu (centroïde y < -0.03 et z > 0.02, seuils calibrés hors jeu sur l'OBJ exporté).
+  VisEquipment instancie `attach` sur l'articulation de la tête (position locale 0) et ne fait que
+  désactiver les colliders. FoxHeadTuner applique la pose depuis la config, à chaud : [FoxHeaddress]
+  Offset, Rotation, Scale. Les renderers d'origine du casque sont désactivés (les colliders sont gardés pour
+  l'objet au sol).
+- Cape MeadowFoxCape : clone de CapeWolf (déjà une tête de loup sur l'épaule) teinté roux.
+- Coiffe et cape : armure 0, pas d'améliorations, résistances et set vidés. Chacune a son SE_Stats (deux
+  objets distincts) : régén. d'endurance x1.1, Unarmed +10 niveaux, dégâts à main nue x1.1 (cumulables).
+  Établi : coiffe 3 peaux + 2 chutes de cuir, cape 5 peaux + 2 chutes.

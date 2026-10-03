@@ -1,8 +1,8 @@
 """Paint the sparrow colour mask in the crow's UV layout, from the crow's own 3D geometry.
 
 The vanilla crow is black and its 64x64 texture has no readable anatomy, but its two meshes (sitting and
-flying) share one UV layout. So every UV pixel is coloured from the 3D point it lands on: blue crown, red
-throat and breast, buff cheeks and belly, brown back, blue flight feathers and wing tips. In game the mask is
+flying) share one UV layout. So every UV pixel is coloured from the 3D point it lands on: grey-brown crown,
+red throat and breast, buff cheeks and belly, brown back, dark flight feathers and wing tips. In game the mask is
 multiplied with the crow texture's shading (see Sparrows.Colorize), so the shipped PNG holds only our colours.
 
 Bring your own game: the meshes are exported from your install at build time and never committed.
@@ -16,7 +16,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 SIZE = 256
-BLUE = (0.22, 0.38, 0.85)
+CROWN = (0.47, 0.42, 0.38)       # grey-brown cap, like a house sparrow
 RED = (0.80, 0.20, 0.12)
 BUFF = (0.86, 0.76, 0.60)
 BROWN = (0.52, 0.35, 0.21)
@@ -80,9 +80,9 @@ def sitting_colour(p):
     if z < 0.16 and y > 0.72:
         return BEAK
     if side > 0.78 and 0.30 < y < 0.80:
-        return BLUE if z > 0.55 else BROWN  # folded wing: blue flight feathers at the back
+        return DARK if z > 0.55 else BROWN  # folded wing: darker flight feathers at the back
     if y > 0.82 and z < 0.42:
-        return BLUE                       # crown
+        return CROWN                      # crown
     if y > 0.70 and z < 0.40:
         return BUFF                       # cheeks
     if z < 0.42 and 0.40 < y <= 0.70:
@@ -97,7 +97,7 @@ def sitting_colour(p):
 def flying_wing_colour(p):
     x = p[0]
     side = abs(x - 0.5) * 2
-    return BLUE if side > 0.62 else BROWN  # blue wing tips
+    return DARK if side > 0.62 else BROWN  # darker wing tips
 
 
 def raster(img, owner, V, T, F, colour_of, accept=None):

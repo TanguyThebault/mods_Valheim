@@ -58,6 +58,7 @@ namespace ThrowingAxe
 
             Rabbits.BindConfig(Config);
             Sparrows.BindConfig(Config);
+            Foxes.BindConfig(Config);
             AddLocalization();
             PrefabManager.OnVanillaPrefabsAvailable += CreateItem;
             new Harmony(Guid).PatchAll();
@@ -83,6 +84,7 @@ namespace ThrowingAxe
             var loc = LocalizationManager.Instance.GetLocalization();
             Rabbits.AddTranslations(loc);
             Sparrows.AddTranslations(loc);
+            Foxes.AddTranslations(loc);
             loc.AddTranslation("English", new Dictionary<string, string>
             {
                 { "item_axethrowing", "Returning Axe" },
@@ -150,6 +152,15 @@ namespace ThrowingAxe
             catch (System.Exception e)
             {
                 Log.LogError("Rabbits failed to register: " + e);
+            }
+
+            try
+            {
+                Foxes.Register();
+            }
+            catch (System.Exception e)
+            {
+                Log.LogError("Foxes failed to register: " + e);
             }
 
             try

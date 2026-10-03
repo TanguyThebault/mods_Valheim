@@ -34,7 +34,7 @@ namespace ThrowingAxe
         {
             s_furTint = config.Bind("Rabbit", "FurTint", new Color(0.62f, 0.47f, 0.33f, 1f),
                 "Colour multiplied into the hare's materials (restart to apply).");
-            s_scale = config.Bind("Rabbit", "Scale", 0.85f, "Size relative to the vanilla hare (restart).");
+            s_scale = config.Bind("Rabbit", "Scale", 0.75f, "Size relative to the vanilla hare (restart).");
             s_speedFactor = config.Bind("Rabbit", "SpeedFactor", 1.35f, "Run speed relative to the vanilla hare (restart).");
             s_calmSpeed = config.Bind("Rabbit", "CalmSpeed", 2.2f, "Speed when not frightened (vanilla hare: 4) (restart).");
             s_idleInterval = config.Bind("Rabbit", "IdleInterval", 9f, "Seconds between two small moves when calm (restart).");
@@ -81,11 +81,11 @@ namespace ThrowingAxe
 
         public static void Register()
         {
-            Dump("Hare");
-            Dump("DeerHide");
-            Dump("DeerMeat");
-            Dump("CookedDeerMeat");
-            Dump("rug_deer");
+            DumpPrefab("Hare");
+            DumpPrefab("DeerHide");
+            DumpPrefab("DeerMeat");
+            DumpPrefab("CookedDeerMeat");
+            DumpPrefab("rug_deer");
 
             RegisterItems();
             RegisterCreature();
@@ -144,7 +144,7 @@ namespace ThrowingAxe
             }));
         }
 
-        private static void SetIcon(CustomItem item)
+        internal static void SetIcon(CustomItem item)
         {
             try
             {
@@ -330,7 +330,7 @@ namespace ThrowingAxe
 
         // -------------------------------------------------------------- helpers
 
-        private static void Tint(GameObject go, Color tint)
+        internal static void Tint(GameObject go, Color tint)
         {
             foreach (var r in go.GetComponentsInChildren<Renderer>(true))
             {
@@ -352,7 +352,7 @@ namespace ThrowingAxe
             }
         }
 
-        private static void Dump(string prefabName)
+        internal static void DumpPrefab(string prefabName)
         {
             var go = PrefabManager.Cache.GetPrefab<GameObject>(prefabName);
             if (go == null)
@@ -398,6 +398,21 @@ namespace ThrowingAxe
     /// <summary>Marks rabbit instances for the patches below.</summary>
     public class RabbitTag : MonoBehaviour
     {
+        internal static readonly HashSet<Character> All = new HashSet<Character>();
+        private Character _character;
+
+        private void Awake()
+        {
+            _character = GetComponent<Character>();
+            if (_character != null)
+                All.Add(_character);
+        }
+
+        private void OnDestroy()
+        {
+            if (_character != null)
+                All.Remove(_character);
+        }
     }
 
     /// <summary>

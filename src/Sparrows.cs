@@ -200,7 +200,7 @@ namespace ThrowingAxe
         }
 
         /// <summary>
-        /// Colour mask (blue crown, red breast, blue wing tips...; painted in the crow's UV layout by
+        /// Colour mask (grey-brown crown, red breast, dark wing tips...; painted in the crow's UV layout by
         /// tools/paint_sparrow_mask.py) multiplied by the crow texture's shading, so feather detail survives.
         /// </summary>
         private static Texture2D Colorize(Texture src, Texture2D mask)
