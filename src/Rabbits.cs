@@ -26,6 +26,9 @@ namespace ThrowingAxe
         private static ConfigEntry<float> s_speedFactor;
         private static ConfigEntry<float> s_spawnChance;
         private static ConfigEntry<int> s_maxSpawned;
+        private static ConfigEntry<float> s_calmSpeed;
+        private static ConfigEntry<float> s_idleInterval;
+        private static ConfigEntry<float> s_idleRange;
 
         public static void BindConfig(ConfigFile config)
         {
@@ -33,6 +36,9 @@ namespace ThrowingAxe
                 "Colour multiplied into the hare's materials (restart to apply).");
             s_scale = config.Bind("Rabbit", "Scale", 0.85f, "Size relative to the vanilla hare (restart).");
             s_speedFactor = config.Bind("Rabbit", "SpeedFactor", 1.35f, "Run speed relative to the vanilla hare (restart).");
+            s_calmSpeed = config.Bind("Rabbit", "CalmSpeed", 2.2f, "Speed when not frightened (vanilla hare: 4) (restart).");
+            s_idleInterval = config.Bind("Rabbit", "IdleInterval", 9f, "Seconds between two small moves when calm (restart).");
+            s_idleRange = config.Bind("Rabbit", "IdleRange", 4f, "Length of a calm move, m (restart).");
             s_spawnChance = config.Bind("Rabbit", "SpawnChance", 40f, "Spawn chance per spawn check, % (restart).");
             s_maxSpawned = config.Bind("Rabbit", "MaxSpawned", 3, "Max rabbits around a player (restart).");
         }
@@ -181,7 +187,7 @@ namespace ThrowingAxe
             float speed = s_speedFactor.Value;
             character.m_health = 10f;
             character.m_runSpeed *= speed;
-            character.m_speed *= speed;
+            character.m_speed = s_calmSpeed.Value;  // used while calm; fleeing uses m_runSpeed
             character.m_acceleration *= 1.5f;
             character.m_turnSpeed *= 1.6f;
             character.m_runTurnSpeed *= 1.8f;  // sharp cuts when fleeing
@@ -193,11 +199,14 @@ namespace ThrowingAxe
             ai.m_fleeRange = 15f;
             ai.m_fleeAngle = 70f;
             ai.m_fleeInterval = 0.6f;
-            ai.m_randomMoveInterval = 3f;
-            ai.m_randomMoveRange = 3f;
+            // Calm: long pauses, short hops. (Far from home, RandomMovement runs; see SettleAfterFlee.)
+            ai.m_randomMoveInterval = s_idleInterval.Value;
+            ai.m_randomMoveRange = s_idleRange.Value;
             ai.m_afraidOfFire = true;
             ai.m_avoidWater = true;
             ai.m_timeToSafe = 6f;
+
+            go.AddComponent<RabbitTag>();
 
             CreatureManager.Instance.AddCreature(rabbit);
             Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Hare clone): run " + character.m_runSpeed.ToString("F1") +
@@ -283,6 +292,39 @@ namespace ThrowingAxe
                           s.m_foodRegen + ", weight " + s.m_weight + ", stack " + s.m_maxStackSize);
             }
             Plugin.Log.LogInfo(sb.ToString());
+        }
+    }
+}
+
+namespace ThrowingAxe
+{
+    /// <summary>Marks rabbit instances for the patches below.</summary>
+    public class RabbitTag : MonoBehaviour
+    {
+    }
+
+    /// <summary>
+    /// BaseAI.RandomMovement makes an animal RUN back when it is more than 2 x m_randomMoveRange from its
+    /// spawn point. After a flee that would send a calmed rabbit sprinting home; instead it settles where it
+    /// stopped: its home becomes the current position when it stops being alerted.
+    /// </summary>
+    [HarmonyLib.HarmonyPatch(typeof(AnimalAI), "SetAlerted")]
+    internal static class SettleAfterFlee
+    {
+        private static readonly HarmonyLib.AccessTools.FieldRef<BaseAI, Vector3> s_spawnPoint =
+            HarmonyLib.AccessTools.FieldRefAccess<BaseAI, Vector3>("m_spawnPoint");
+        private static readonly HarmonyLib.AccessTools.FieldRef<BaseAI, ZNetView> s_nview =
+            HarmonyLib.AccessTools.FieldRefAccess<BaseAI, ZNetView>("m_nview");
+
+        private static void Postfix(AnimalAI __instance, bool alert)
+        {
+            if (alert || __instance.GetComponent<RabbitTag>() == null)
+                return;
+            Vector3 here = __instance.transform.position;
+            s_spawnPoint(__instance) = here;
+            var nview = s_nview(__instance);
+            if (nview != null && nview.IsValid() && nview.IsOwner())
+                nview.GetZDO().Set(ZDOVars.s_spawnPoint, here);
         }
     }
 }

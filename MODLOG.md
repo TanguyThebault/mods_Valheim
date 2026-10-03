@@ -93,3 +93,15 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
   il faut donc aussi modifier le .cfg quand on change une valeur par défaut.
 - Hache : DestroyImmediate est refusé dans un événement d'animation (Setup est appelé depuis l'event
   d'attaque). Remplacé par disable + Destroy.
+
+## Test 4 (v0.3.1) : spawns OK, fuite validée ; trop agités au calme
+- Cause (BaseAI.RandomMovement) : à plus de 2 x m_randomMoveRange du point de spawn, le déplacement aléatoire
+  se fait EN COURANT. Avec une portée de 3 m, chaque lapin qui avait fui (> 6 m) revenait au sprint. De plus,
+  la vitesse au calme (m_speed) était multipliée par SpeedFactor.
+
+## v0.3.2
+- m_speed = CalmSpeed 2.2 (Hare : 4), non multiplié ; seule la course (m_runSpeed) est multipliée.
+- Errance : IdleInterval 9 s (le jeu tire au hasard entre 9 et 13.5 s), IdleRange 4 m.
+- Patch Harmony AnimalAI.SetAlerted (postfix, alert=false, lapins seulement grâce à RabbitTag) :
+  m_spawnPoint = position actuelle, écrit aussi dans la ZDO (ZDOVars.s_spawnPoint) si on en est
+  propriétaire. Le lapin s'installe là où sa fuite s'est arrêtée.
