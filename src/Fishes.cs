@@ -8,15 +8,17 @@ namespace Wildlife
     /// Livelier vanilla fish without touching their models. Vanilla fish are rigid meshes that just slide.
     /// - Readable meshes (Fish1-3): a 6-joint spine along the body, smooth weights, and a lateral swimming wave
     ///   growing toward the tail (real side-to-side fish swimming).
-    /// - Non-readable meshes (the rest; their vertices can't be read in game): the visual is put under a pivot at
-    ///   the head that yaws back and forth, so the tail sweeps, with a little roll.
+    /// - Non-readable meshes (the rest; their vertices can't be read in game): the visual node ("attachobj") yaws back
+    ///   and forth around a point just behind the head, so the tail sweeps, with a little roll. The prefab
+    ///   hierarchy is left untouched: moving meshes under a new pivot made Unity crash natively when
+    ///   instantiating Fish12 (three meshes, two inactive) from a save.
     /// Beat frequency and amplitude follow the fish's actual speed.
     /// </summary>
     internal static class Fishes
     {
         public static void Register()
         {
-            int rigged = 0, swayed = 0;
+            int rigged = 0, swayed = 0;   // swayed: counted per prefab
             for (int i = 1; i <= 12; i++)
             {
                 // Fish assets are soft references: load them (and so their materials, in other bundles) first,
@@ -34,7 +36,7 @@ namespace Wildlife
                 var prefab = Jotunn.Managers.PrefabManager.Cache.GetPrefab<GameObject>("Fish" + i);
                 if (prefab == null || prefab.GetComponent<Fish>() == null)
                     continue;
-                bool any = false;
+                bool any = false, sway = false;
                 foreach (var mf in prefab.GetComponentsInChildren<MeshFilter>(true))
                 {
                     var mr = mf.GetComponent<MeshRenderer>();
@@ -42,14 +44,16 @@ namespace Wildlife
                         continue;
                     if (mf.sharedMesh.isReadable && Rig(prefab, mf, mr))
                         rigged++;
-                    else if (Sway(prefab, mf))
-                        swayed++;
+                    else
+                        sway = true;
                     any = true;
                 }
+                if (sway)
+                    swayed++;
                 if (any && prefab.GetComponent<ProcFish>() == null)
                     prefab.AddComponent<ProcFish>();
             }
-            Plugin.Log.LogInfo("Fish: " + rigged + " meshes on a spine, " + swayed + " on a swaying pivot");
+            Plugin.Log.LogInfo("Fish: " + rigged + " meshes on a spine, " + swayed + " fish swaying");
         }
 
         /// <summary>Spine rig in the fish root's space (forward = +z = head).</summary>
@@ -117,33 +121,15 @@ namespace Wildlife
             return true;
         }
 
-        /// <summary>Puts the mesh under a pivot at the head, which the animator yaws.</summary>
-        private static bool Sway(GameObject root, MeshFilter mf)
-        {
-            var b = mf.sharedMesh.bounds;
-            var toRoot = root.transform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
-            float zMax = float.MinValue, zMin = float.MaxValue;
-            Vector3 c = toRoot.MultiplyPoint3x4(b.center);
-            for (int i = 0; i < 8; i++)
-            {
-                var corner = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
-                float z = toRoot.MultiplyPoint3x4(corner).z;
-                zMax = Mathf.Max(zMax, z);
-                zMin = Mathf.Min(zMin, z);
-            }
-            var pivot = new GameObject("FishSway").transform;
-            pivot.SetParent(root.transform, false);
-            pivot.localPosition = new Vector3(c.x, c.y, zMin + (zMax - zMin) * 0.8f);   // just behind the head
-            mf.transform.SetParent(pivot, true);
-            return true;
-        }
     }
 
     /// <summary>Fish swimming wave (spine rigs) or head-pivot sway, driven by the fish's speed.</summary>
     public class ProcFish : MonoBehaviour, IProcAnimated
     {
         private readonly List<Transform[]> _spines = new List<Transform[]>();
-        private readonly List<Transform> _pivots = new List<Transform>();
+        private Transform _visual;            // swaying fish: the node that holds the meshes
+        private Vector3 _basePos, _pivot;     // in the visual's parent space
+        private Quaternion _baseRot;
         private Vector3 _lastPos;
         private float _speed, _phase, _seed;
         private bool _lab;
@@ -166,11 +152,36 @@ namespace Wildlife
                     while (t != null) { list.Add(t); t = t.childCount > 0 ? t.Find("FishSpine" + list.Count) : null; }
                     _spines.Add(list.ToArray());
                 }
-                else if (child.name == "FishSway")
-                    _pivots.Add(child);
             }
+            if (_spines.Count == 0)
+                SetUpSway();
             _lastPos = transform.position;
             _seed = Random.Range(0f, 10f);
+        }
+
+        private void SetUpSway()
+        {
+            var mr = GetComponentsInChildren<MeshRenderer>(true).FirstOrDefault(r => r.enabled && r.gameObject.activeSelf)
+                     ?? GetComponentInChildren<MeshRenderer>(true);
+            if (mr == null || mr.transform.parent == null || mr.transform.parent == transform)
+                return;
+            _visual = mr.transform.parent;                 // "attachobj"
+            var parent = _visual.parent;
+            _basePos = _visual.localPosition;
+            _baseRot = _visual.localRotation;
+            var b = mr.GetComponent<MeshFilter>().sharedMesh.bounds;
+            var toRoot = transform.worldToLocalMatrix * mr.transform.localToWorldMatrix;
+            float zMin = float.MaxValue, zMax = float.MinValue;
+            for (int i = 0; i < 8; i++)
+            {
+                var corner = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                float z = toRoot.MultiplyPoint3x4(corner).z;
+                zMin = Mathf.Min(zMin, z);
+                zMax = Mathf.Max(zMax, z);
+            }
+            Vector3 c = toRoot.MultiplyPoint3x4(b.center);
+            var pivotRoot = new Vector3(c.x, c.y, zMin + (zMax - zMin) * 0.8f);   // just behind the head
+            _pivot = parent.InverseTransformPoint(transform.TransformPoint(pivotRoot));
         }
 
         public void LabPose(float speed, float time)
@@ -214,8 +225,13 @@ namespace Wildlife
             }
             float yaw = (5f + 7f * fast) * Mathf.Sin(_phase);
             float roll = 3f * Mathf.Sin(_phase + 1f + _seed);
-            foreach (var p in _pivots)
-                p.localRotation = Quaternion.Euler(0f, yaw, roll);
+            if (_visual != null)
+            {
+                // rotate the visual node about the pivot: q * (x - pivot) + pivot
+                var q = Quaternion.Euler(0f, yaw, roll);
+                _visual.localRotation = q * _baseRot;
+                _visual.localPosition = _pivot + q * (_basePos - _pivot);
+            }
         }
     }
 }

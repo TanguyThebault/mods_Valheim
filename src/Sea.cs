@@ -59,7 +59,7 @@ namespace Wildlife
                 BreachChance = 0f, Wander = 25f, Species = "whale",
             }, finZ: new Vector2(0.45f, 0.8f), anim: a =>
             {
-                a.Amplitude = 30f; a.Horizontal = 8f; a.BaseFrequency = 0.22f; a.Exponent = 2.0f; a.WaveNumber = 1.6f; a.FlukeBoost = 1.6f;
+                a.Amplitude = 62f; a.Horizontal = 8f; a.BaseFrequency = 0.2f; a.Exponent = 1.6f; a.WaveNumber = 1.5f; a.FlukeBoost = 1.5f; a.Pitch = 4f;
             }, spout: new Vector2(6.5f, 1.4f));
             Make(OrcaPrefab, "orca", "$ocean_orca", template, mist, s_orcaLength.Value, new SeaSwimmer.Settings
             {
@@ -67,7 +67,7 @@ namespace Wildlife
                 BreachChance = 0.3f, Wander = 35f, Species = "orca",
             }, finZ: new Vector2(0.48f, 0.75f), anim: a =>
             {
-                a.Amplitude = 28f; a.Horizontal = 7f; a.BaseFrequency = 0.5f; a.Exponent = 2.0f; a.WaveNumber = 1.8f; a.FlukeBoost = 1.4f;
+                a.Amplitude = 52f; a.Horizontal = 7f; a.BaseFrequency = 0.45f; a.Exponent = 1.6f; a.WaveNumber = 1.7f; a.FlukeBoost = 1.4f; a.Pitch = 5f;
             }, spout: new Vector2(3.5f, 0.7f));
             AddSpawn(WhalePrefab, 16f, s_whaleMax.Value, 1, 1, s_whaleChance.Value);
             AddSpawn(OrcaPrefab, 9f, s_orcaMax.Value, 2, 3, s_orcaChance.Value);

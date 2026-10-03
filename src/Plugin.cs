@@ -55,6 +55,7 @@ namespace Wildlife
             CommandManager.Instance.AddConsoleCommand(new ClearCommand());
             CommandManager.Instance.AddConsoleCommand(new LabCommand());
             CommandManager.Instance.AddConsoleCommand(new OverlayCommand());
+            CommandManager.Instance.AddConsoleCommand(new SeaCommand());
             Log.LogInfo("Wildlife " + Version + " loaded");
         }
 

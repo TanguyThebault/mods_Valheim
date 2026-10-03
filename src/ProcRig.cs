@@ -439,6 +439,7 @@ namespace Wildlife
         public float Exponent = 1.4f;          // how much of the body joins the stroke (lower = more)
         public float WaveNumber = 2.2f;        // phase lag head -> tail
         public float FlukeBoost = 1.4f;
+        public float Pitch = 4f;               // whole-body pitch against the stroke (the head dips as the tail rises)
         private Transform[] _spine;
         private Transform _finL, _finR, _fluke;
         private Vector3 _lastPos;
@@ -507,7 +508,8 @@ namespace Wildlife
             float calm = _spout > 0f ? 0.35f : 1f;
             float freq = BaseFrequency + _speed * 0.05f;
             _phase += dt * freq * Mathf.PI * 2f;
-            float amp = Amplitude * (0.55f + 0.45f * Mathf.Clamp01(_speed / 6f)) * calm;
+            // cruising already uses most of the stroke: cetaceans swim with big, slow tail beats
+            float amp = Amplitude * (0.8f + 0.2f * Mathf.Clamp01(_speed / 6f)) * calm;
             float side = Horizontal * calm;
             float turn = Mathf.Clamp(_yawRate * 0.5f, -22f, 22f);         // bend into the turn
             float roll = Mathf.Clamp(-_yawRate * 0.35f, -18f, 18f);       // bank into the turn
@@ -521,7 +523,8 @@ namespace Wildlife
                 float shape = Mathf.Pow(k, Exponent);
                 float v = amp * shape * Mathf.Sin(_phase - k * WaveNumber) - arch * 8f * (1f - k) + arch * 6f * k;   // total bend at k
                 float h = side * Mathf.Pow(k, 1.3f) * Mathf.Sin(_phase * 0.5f - k * 1.6f) + turn * k;
-                var rot = Quaternion.Euler(v - prevV, h - prevH, i == 0 ? roll : 0f);
+                float pitch = i == 0 ? -Pitch * calm * Mathf.Sin(_phase + 0.6f) : 0f;
+                var rot = Quaternion.Euler(v - prevV + pitch, h - prevH, i == 0 ? roll : 0f);
                 _spine[i].localRotation = rot;
                 prevV = v;
                 prevH = h;

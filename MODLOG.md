@@ -438,3 +438,15 @@ gros.
 - Whale: texture painted from geometry, 4 zero normals fixed, 145 stray fragments (340 faces) removed, fins/flukes given real back faces.
 - Sea: leash to the closest player + claiming orphaned ZDOs (whales stopped when ownership dropped) — untested in game.
 - Vanilla fish: Fish1-3 on a 6-joint spine, Fish4-12 on a swaying pivot; soft references loaded so materials resolve. Verified in the lab from 5 angles.
+
+## v0.15.1 — 2026-10-03 (test piloté par l'agent)
+- Crash natif au chargement du monde Laboratory : ZNetScene.CreateObject -> Instantiate de Fish12 (poisson-globe,
+  3 maillages dont 2 inactifs). Trouvé avec un journal CreateTrace (lab/created.txt, flush à chaque objet).
+  Cause : le pivot oscillant déplaçait les maillages sous un nouvel objet dans le prefab. Correctif : plus aucune
+  modification de hiérarchie, le nœud attachobj tourne en place autour d'un point derrière la tête.
+- Banc d'essai `ta_sea goto|spawn|log` et lignes `cmd <commande>` dans lab/request.txt (commandes sans clavier).
+- Persistance vérifiée : 9 créatures marines (2 baleines, 7 orques) nagent sans arrêt pendant plus de 8 min
+  (1,7-3 m/s, 12-62 m du joueur, toutes possédées localement).
+- Retour de Lekinox : « encore beaucoup trop raides ». Amplitude baleine 30 -> 62°, orque 28 -> 52°, peu
+  réduite à vitesse de croisière (80 % au lieu de 55 %), flexion plus étalée (exposant 1.6), tangage du corps en
+  contre-phase (4-5°). Vérifié au labo sous 5 angles, sans pliure.

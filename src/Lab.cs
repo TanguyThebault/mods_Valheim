@@ -14,6 +14,7 @@ namespace Wildlife
     /// drop a request file and read the PNGs.
     ///
     ///   BepInEx/plugins/Wildlife/lab/request.txt   one job per line:  &lt;prefab&gt; [frames=8] [tile=256]
+    ///                                                 or "cmd <console command>" to run one in game
     ///                                                 or "refit" to re-apply the generated models with the
     ///                                                 current [MouseFit] config before rendering
     ///   -> lab/&lt;prefab&gt;_bind.png     bind pose: side | front | top
@@ -60,6 +61,18 @@ namespace Wildlife
                 var a = raw.Split(new[] { ' ', '\t' }, System.StringSplitOptions.RemoveEmptyEntries);
                 if (a.Length == 0)
                     continue;
+                if (a[0] == "cmd")
+                {
+                    // run a console command in game, e.g. "cmd ta_sea log 10" (agent-driven tests, no typing)
+                    string text = raw.Trim().Substring(3).Trim();
+                    try
+                    {
+                        if (Console.instance != null) Console.instance.TryRunCommand(text, false, true);
+                        log.AppendLine("cmd " + text + (Console.instance != null ? ": run" : ": no console"));
+                    }
+                    catch (System.Exception e) { log.AppendLine(raw + ": " + e.Message); }
+                    continue;
+                }
                 if (a[0] == "refit")
                 {
                     try { log.AppendLine(Mice.Refit()); }
