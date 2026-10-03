@@ -120,12 +120,27 @@ namespace Wildlife
             cam.cullingMask = 1 << Layer;
             cam.nearClipPlane = 0.01f;
             cam.farClipPlane = size * 20f;
+            // neutral ambient while rendering: the menu's sunset sky tinted every model warm brown
+            var oldAmbientMode = RenderSettings.ambientMode;
+            var oldAmbient = RenderSettings.ambientLight;
+            float oldReflection = RenderSettings.reflectionIntensity;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.33f, 0.34f, 0.36f);
+            RenderSettings.reflectionIntensity = 0.15f;
             var lightGo = new GameObject("lab_light");
             var light = lightGo.AddComponent<Light>();
             light.type = LightType.Directional;
             light.intensity = 1.2f;
             light.cullingMask = 1 << Layer;
             lightGo.transform.rotation = Quaternion.Euler(40f, -35f, 0f);
+            // fill light from the other side and below: with a single key light (and no ambient at the menu), any
+            // surface turned away went pitch black, which looked like a texture bug (the whale's "black fluke")
+            var fillGo = new GameObject("lab_fill");
+            var fill = fillGo.AddComponent<Light>();
+            fill.type = LightType.Directional;
+            fill.intensity = 0.55f;
+            fill.cullingMask = 1 << Layer;
+            fillGo.transform.rotation = Quaternion.Euler(-25f, 150f, 0f);
             var rt = new RenderTexture(tile, tile, 24);
             cam.targetTexture = rt;
 
@@ -139,7 +154,22 @@ namespace Wildlife
             void Shot(Texture2D sheet, int col, int row)
             {
                 foreach (var b in bones) b.Update();
+                // the game's creature shader reads these globals, which the menu's sunset environment rewrites
+                // every frame (warm brown cast): neutral values for this render only
+                var amb = Shader.GetGlobalColor("_AmbientColor");
+                var sun = Shader.GetGlobalColor("_SunColor");
+                var fog = Shader.GetGlobalColor("_SunFogColor");
+                Shader.SetGlobalColor("_AmbientColor", new Color(0.33f, 0.34f, 0.36f));
+                Shader.SetGlobalColor("_SunColor", Color.white * 1.2f);
+                Shader.SetGlobalColor("_SunFogColor", new Color(0.5f, 0.52f, 0.55f));
+                // the menu's own (sunset) lights also reach the lab layer: keep them out of this render
+                var others = Object.FindObjectsOfType<Light>().Where(l => l != light && l != fill && (l.cullingMask & (1 << Layer)) != 0).ToList();
+                foreach (var l in others) l.cullingMask &= ~(1 << Layer);
                 cam.Render();
+                foreach (var l in others) if (l != null) l.cullingMask |= 1 << Layer;
+                Shader.SetGlobalColor("_AmbientColor", amb);
+                Shader.SetGlobalColor("_SunColor", sun);
+                Shader.SetGlobalColor("_SunFogColor", fog);
                 RenderTexture.active = rt;
                 sheet.ReadPixels(new Rect(0, 0, tile, tile), col * tile, sheet.height - (row + 1) * tile);
                 RenderTexture.active = null;
@@ -196,7 +226,7 @@ namespace Wildlife
                     var sheet = new Texture2D(tile * frames, tile * nv, TextureFormat.RGB24, false);
                     for (int f = 0; f < frames; f++)
                     {
-                        proc.LabPose(speed, speed < 0.1f ? f * 0.6f : f / (float)frames * 1.2f);
+                        proc.LabPose(speed, speed < 0.1f ? f * 0.6f : f / (float)frames * (proc is ProcSwimmer sw ? sw.Cycle(speed) : 1.2f));   // swimmers: one whole stroke
                         yield return null;
                         yield return null;
                         AllViews(sheet, f);
@@ -235,6 +265,10 @@ namespace Wildlife
             Object.Destroy(rt);
             Object.Destroy(camGo);
             Object.Destroy(lightGo);
+            Object.Destroy(fillGo);
+            RenderSettings.ambientMode = oldAmbientMode;
+            RenderSettings.ambientLight = oldAmbient;
+            RenderSettings.reflectionIntensity = oldReflection;
             Object.Destroy(go);
             log.AppendLine(prefabName + ": " + clips.Length + " clips rendered");
         }

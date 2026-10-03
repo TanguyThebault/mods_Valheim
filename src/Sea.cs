@@ -59,7 +59,7 @@ namespace Wildlife
                 BreachChance = 0f, Wander = 25f, Species = "whale",
             }, finZ: new Vector2(0.45f, 0.8f), anim: a =>
             {
-                a.Amplitude = 62f; a.Horizontal = 8f; a.BaseFrequency = 0.2f; a.Exponent = 1.6f; a.WaveNumber = 1.5f; a.FlukeBoost = 1.5f; a.Pitch = 4f;
+                a.TipAmplitude = 0.14f; a.FlukePitch = 22f; a.WaveNumber = 6f; a.Strouhal = 0.37f; a.MinFrequency = 0.14f; a.LengthMeters = s_whaleLength.Value; a.Horizontal = 3f; a.RigidFront = 0.45f; a.HeadHeave = 0.015f;
             }, spout: new Vector2(6.5f, 1.4f));
             Make(OrcaPrefab, "orca", "$ocean_orca", template, mist, s_orcaLength.Value, new SeaSwimmer.Settings
             {
@@ -67,7 +67,7 @@ namespace Wildlife
                 BreachChance = 0.3f, Wander = 35f, Species = "orca",
             }, finZ: new Vector2(0.48f, 0.75f), anim: a =>
             {
-                a.Amplitude = 52f; a.Horizontal = 7f; a.BaseFrequency = 0.45f; a.Exponent = 1.6f; a.WaveNumber = 1.7f; a.FlukeBoost = 1.4f; a.Pitch = 5f;
+                a.TipAmplitude = 0.15f; a.FlukePitch = 22f; a.WaveNumber = 6.5f; a.Strouhal = 0.37f; a.MinFrequency = 0.35f; a.LengthMeters = s_orcaLength.Value; a.Horizontal = 3f; a.RigidFront = 0.5f; a.HeadHeave = 0.015f;
             }, spout: new Vector2(3.5f, 0.7f));
             AddSpawn(WhalePrefab, 16f, s_whaleMax.Value, 1, 1, s_whaleChance.Value);
             AddSpawn(OrcaPrefab, 9f, s_orcaMax.Value, 2, 3, s_orcaChance.Value);
@@ -100,17 +100,11 @@ namespace Wildlife
             go.AddComponent<ZSyncTransform>();
 
             var bones = ProcRig.SwimmerBones(d, finZ.x, finZ.y, out var allowed, out var weights);
-            var rig = ProcRig.Build(go, d, bones, allowed, template, length, model + "_rig", weights);
+            var rig = ProcRig.Build(go, d, bones, allowed, template, length, model + "_rig", weights, glossiness: 0.3f);   // wet skin, but not a mirror for the sky
             // centre the body on the object so it swims around its own position, not its belly
             var visual = go.transform.Find("Visual_rig");
             visual.localPosition = new Vector3(0f, -length * d.Bounds.size.y / d.Bounds.size.z * 0.5f, 0f);
 
-            if (model == "whale")
-            {
-                // its fins and flukes now have real back faces (build_models clean_shells): draw front faces only
-                var mat = visual.GetComponent<SkinnedMeshRenderer>().sharedMaterial;
-                if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", 2f);
-            }
             AddBlowhole(go, d, visual, rig, mist, spout.x, spout.y);
             anim(go.AddComponent<ProcSwimmer>());
             go.AddComponent<SeaSwimmer>().Set(settings);

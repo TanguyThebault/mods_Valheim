@@ -113,7 +113,7 @@ namespace Wildlife
             mesh.uv = d.Uv;
             mesh.triangles = d.Idx;
             mesh.RecalculateBounds();
-            mesh.RecalculateTangents();
+            ProcRig.SafeTangents(mesh);
             return mesh;
         }
 

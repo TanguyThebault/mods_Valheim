@@ -450,3 +450,23 @@ gros.
 - Retour de Lekinox : « encore beaucoup trop raides ». Amplitude baleine 30 -> 62°, orque 28 -> 52°, peu
   réduite à vitesse de croisière (80 % au lieu de 55 %), flexion plus étalée (exposant 1.6), tangage du corps en
   contre-phase (4-5°). Vérifié au labo sous 5 angles, sans pliure.
+
+## v0.16 — 2026-10-03 : nage des cétacés refaite, baleine reconstruite (évaluée par un 2e agent)
+Références (Fish & Rohr, Strouhal des odontocètes ; tags de baleines à bosse) : flexion sur le tiers arrière, nageoire
+caudale 15-25 % de la longueur crête à crête, pas ±20-30° en quadrature, Strouhal 0.2-0.4, baleine à bosse ~0.2 Hz.
+- Le labo ne montrait que 1,2 s par planche (un tiers de battement de baleine) : il couvre maintenant un battement
+  complet. Lumière d'appoint, ambiance neutre, globals du shader (_AmbientColor, _SunColor) neutres et lumières du
+  menu exclues pendant le rendu : la « teinte brune » et la « nageoire noire » venaient du coucher de soleil du menu.
+- Animation : pilotée par la ligne médiane y(s,t) = A(s) sin(phase - k s), A croît comme le carré de la distance à
+  partir de 45 % (baleine) / 50 % (orque) et culmine au pédoncule ; k ≈ 6 rad/longueur (onde progressive) ; nageoire
+  en « feathering » à ±22° de la trajectoire (une erreur de signe la faisait se dresser), pivot réparti 40/60 sur les
+  deux dernières articulations ; tête en translation (~3 %), roulis en virage ; fréquence par Strouhal 0.37.
+  Mesuré : queue 19 % de la longueur crête à crête, museau 2-3 %.
+- Squelette : articulations resserrées vers l'arrière, articulation Fluke au pédoncule (point le plus étroit,
+  détecté), peau répartie sur 4 articulations (plus de pli à l'intérieur de la courbe).
+- Modèle baleine (build_models) : queue redressée (le modèle généré plongeait, -11 %), galettes remplacées par une
+  nageoire en croissant procédurale (envergure 31 %, pointes, encoche, bord festonné, îlots UV dessus/dessous),
+  nageoires pectorales x1,9 en flèche de 35°, abaissées de 20°, effilées, à tubercules ; normales soudées aux coutures ;
+  flanc rendu symétrique (pan du maillage généré). Matériau : la gloss map du lièvre (autres UV) est retirée, normales
+  double face activées ; tangentes réparées (SafeTangents).
+- Évaluation par un 2e agent (vraisemblance, seuil 7,5) : 5,0 -> 6,5 -> 7,0 -> 7,5 (baleine 7,5, orque 8,0, modèle 7,5).

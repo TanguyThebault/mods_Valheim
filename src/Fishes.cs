@@ -108,7 +108,7 @@ namespace Wildlife
             mesh.boneWeights = weights;
             mesh.bindposes = bones.Select(b => b.worldToLocalMatrix * rigRoot.localToWorldMatrix).ToArray();
             mesh.RecalculateBounds();
-            mesh.RecalculateTangents();
+            ProcRig.SafeTangents(mesh);
             var smr = rigRoot.gameObject.AddComponent<SkinnedMeshRenderer>();
             smr.sharedMesh = mesh;
             smr.bones = bones;

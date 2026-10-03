@@ -29,6 +29,40 @@ namespace Wildlife
 
         // ------------------------------------------------------------ build
 
+        /// <summary>
+        /// RecalculateTangents, then repair the tangents that came out NaN, zero or parallel to the normal (triangles
+        /// with degenerate UVs). The game's shaders apply a normal map, so a bad tangent turns a pixel black: it was
+        /// the whale's black fluke.
+        /// </summary>
+        public static int SafeTangents(Mesh mesh)
+        {
+            mesh.RecalculateTangents();
+            var t = mesh.tangents;
+            var n = mesh.normals;
+            if (n == null || n.Length != t.Length)
+                return 0;
+            int fixedCount = 0;
+            for (int i = 0; i < t.Length; i++)
+            {
+                var tv = new Vector3(t[i].x, t[i].y, t[i].z);
+                bool bad = float.IsNaN(tv.x) || float.IsNaN(tv.y) || float.IsNaN(tv.z) || float.IsNaN(t[i].w) ||
+                           tv.sqrMagnitude < 1e-8f || Vector3.Cross(tv.normalized, n[i]).sqrMagnitude < 1e-4f;
+                if (!bad)
+                {
+                    // keep it, but exactly perpendicular to the normal
+                    var o = (tv - n[i] * Vector3.Dot(n[i], tv)).normalized;
+                    t[i] = new Vector4(o.x, o.y, o.z, t[i].w < 0f ? -1f : 1f);
+                    continue;
+                }
+                var axis = Mathf.Abs(n[i].y) < 0.9f ? Vector3.up : Vector3.right;
+                var p = Vector3.Cross(axis, n[i]).normalized;
+                t[i] = new Vector4(p.x, p.y, p.z, 1f);
+                fixedCount++;
+            }
+            mesh.tangents = t;
+            return fixedCount;
+        }
+
         /// <summary>The rig's bones by name, found under the "Visual_rig" child (after Instantiate).</summary>
         public static Dictionary<string, Transform> Collect(Transform owner)
         {
@@ -44,7 +78,7 @@ namespace Wildlife
 
         /// <summary>Creates the visual: bone hierarchy + SkinnedMeshRenderer. Returns the bone transforms by name.</summary>
         public static Dictionary<string, Transform> Build(GameObject owner, ModelData d, List<Bone> bones, Func<int, int[]> allowed,
-            Material template, float size, string name, Func<int, BoneWeight> weights = null)
+            Material template, float size, string name, Func<int, BoneWeight> weights = null, float glossiness = 0.3f)
         {
             var root = new GameObject("Visual_rig").transform;
             root.SetParent(owner.transform, false);
@@ -76,7 +110,9 @@ namespace Wildlife
             mesh.boneWeights = weights != null ? Enumerable.Range(0, d.Pos.Length).Select(weights).ToArray() : Skin(d, bones, allowed);
             mesh.bindposes = bones.Select(b => Matrix4x4.Translate(-(b.Pos - origin))).ToArray();
             mesh.RecalculateBounds();
-            mesh.RecalculateTangents();
+            int badTangents = SafeTangents(mesh);
+            if (badTangents > 0)
+                Plugin.Log.LogInfo(name + ": repaired " + badTangents + " tangents");
 
             var smr = root.gameObject.AddComponent<SkinnedMeshRenderer>();
             smr.sharedMesh = mesh;
@@ -91,12 +127,38 @@ namespace Wildlife
             if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
             if (mat.HasProperty("_BumpMap")) mat.SetTexture("_BumpMap", Models.FlatNormalMap);
             if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", Color.black);
+            // The template's gloss map belongs to the hare's UVs: on our models it scattered shiny patches that
+            // mirrored a dark sky (the whale's "stains" and black fluke). Uniform gloss instead. And the shader
+            // draws both faces (_Cull 0): let back faces use flipped normals, or thin fins go black from behind.
+            if (mat.HasProperty("_MetallicGlossMap")) mat.SetTexture("_MetallicGlossMap", null);
+            if (mat.HasProperty("_UseGlossmap")) mat.SetFloat("_UseGlossmap", 0f);
+            mat.DisableKeyword("_USEGLOSSMAP_ON");
+            if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", glossiness);
+            if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0f);
+            if (mat.HasProperty("_TwoSidedNormals")) mat.SetFloat("_TwoSidedNormals", 1f);
             smr.sharedMaterial = mat;
+            if (!s_materialLogged)
+            {
+                s_materialLogged = true;
+                var sb = new System.Text.StringBuilder("Rig material from " + template.name + " (" + mat.shader.name + "): textures");
+                foreach (var prop in mat.GetTexturePropertyNames())
+                {
+                    var tx = mat.GetTexture(prop);
+                    sb.Append(" " + prop + "=" + (tx != null ? tx.name : "null"));
+                }
+                sb.Append("; keywords " + string.Join(",", mat.shaderKeywords));
+                for (int i = 0; i < mat.shader.GetPropertyCount(); i++)
+                    if (mat.shader.GetPropertyType(i) == UnityEngine.Rendering.ShaderPropertyType.Float || mat.shader.GetPropertyType(i) == UnityEngine.Rendering.ShaderPropertyType.Range)
+                        sb.Append(" " + mat.shader.GetPropertyName(i) + "=" + mat.GetFloat(mat.shader.GetPropertyName(i)).ToString("0.##"));
+                Plugin.Log.LogInfo(sb.ToString());
+            }
 
             var dict = new Dictionary<string, Transform>();
             for (int i = 0; i < bones.Count; i++) dict[bones[i].Name] = t[i];
             return dict;
         }
+
+        private static bool s_materialLogged;
 
         /// <summary>Two nearest allowed bones (segment to first child, or the joint itself), inverse-square weights.</summary>
         private static BoneWeight[] Skin(ModelData d, List<Bone> bones, Func<int, int[]> allowed)
@@ -215,6 +277,29 @@ namespace Wildlife
         // --------------------------------------------------------- swimmer
 
         /// <summary>Spine of 8 joints head to fluke (centroids of slices along z), plus the two pectoral fins.</summary>
+        /// <summary>Normalised z (0 = tail tip) of the narrowest point of the tail stock, between z 0.05 and 0.3.</summary>
+        public static float Peduncle(ModelData d)
+        {
+            float best = 0.1f, bestWidth = float.MaxValue;
+            for (float z = 0.05f; z <= 0.3f; z += 0.01f)
+            {
+                float lo = float.MaxValue, hi = float.MinValue;
+                for (int v = 0; v < d.Pos.Length; v++)
+                {
+                    var n = d.Norm(v);
+                    if (Mathf.Abs(n.z - z) > 0.006f) continue;
+                    lo = Mathf.Min(lo, n.x);
+                    hi = Mathf.Max(hi, n.x);
+                }
+                if (hi > lo && hi - lo < bestWidth)
+                {
+                    bestWidth = hi - lo;
+                    best = z;
+                }
+            }
+            return best;
+        }
+
         public static List<Bone> SwimmerBones(ModelData d, float finZMin, float finZMax, out Func<int, int[]> allowed)
         {
             return SwimmerBones(d, finZMin, finZMax, out allowed, out _);
@@ -229,18 +314,31 @@ namespace Wildlife
         {
             var bones = new List<Bone>();
             int Add(string name, int parent, Vector3 p) { bones.Add(new Bone { Name = name, Parent = parent, Pos = p }); return bones.Count - 1; }
-            const int N = 8;
+            // Cetaceans bend mostly over the rear third and pitch their flukes at the peduncle: joints are packed
+            // toward the tail, and the Fluke joint sits at the peduncle (the narrowest point before the flukes),
+            // so the flukes turn as one rigid hydrofoil.
+            float[] along = { 0.10f, 0.30f, 0.48f, 0.62f, 0.73f, 0.82f, 0.90f, 0.96f };   // fractions of head..peduncle
+            int N = along.Length;
             float halfWidth = 0.5f;
             bool Fin(Vector3 n) => n.z > finZMin && n.z < finZMax && Mathf.Abs(n.x - 0.5f) > 0.28f && n.y < 0.6f;
+            float peduncle = Peduncle(d);
             var spine = new int[N];
+            var spineZ = new float[N];
             int prev = -1;
             for (int i = 0; i < N; i++)
             {
-                float z = 1f - (i + 0.5f) / N;   // head first
-                prev = spine[i] = Add("Spine" + i, prev, Centroid(d, n => !Fin(n) && Mathf.Abs(n.z - z) < 0.5f / N, At(d, 0.5f, 0.5f, z)));
+                float z = 1f - along[i] * (1f - peduncle);   // head first
+                spineZ[i] = z;
+                prev = spine[i] = Add("Spine" + i, prev, Centroid(d, n => !Fin(n) && Mathf.Abs(n.z - z) < 0.03f, At(d, 0.5f, 0.5f, z)));
             }
-            Add("Fluke", prev, Centroid(d, n => n.z < 0.04f, At(d, 0.5f, 0.5f, 0f)));
-            int Near(float z) => spine[Mathf.Clamp(Mathf.RoundToInt((1f - z) * N - 0.5f), 0, N - 1)];
+            Add("Fluke", prev, Centroid(d, n => Mathf.Abs(n.z - peduncle) < 0.02f, At(d, 0.5f, 0.5f, peduncle)));
+            int Near(float z)
+            {
+                int best = 0;
+                for (int i = 1; i < N; i++)
+                    if (Mathf.Abs(spineZ[i] - z) < Mathf.Abs(spineZ[best] - z)) best = i;
+                return spine[best];
+            }
             float finZ = (finZMin + finZMax) / 2f;
             foreach (var side in new[] { "L", "R" })
             {
@@ -262,16 +360,33 @@ namespace Wildlife
             // chain head -> tail with each joint's normalised z (decreasing)
             var chain = spineSet;
             var cz = chain.Select(i => (bones[i].Pos.z - d.Bounds.min.z) / d.Bounds.size.z).ToArray();
+            // smooth skin: each vertex shared by up to 4 joints (tent kernels 1.6 joint spacings wide), so a bent tail
+            // keeps its volume instead of creasing on the inside of the bend; the flukes stay rigid on their joint
             BoneWeight Along(float z)
             {
+                int last = chain.Length - 1;
+                if (z <= cz[last]) return new BoneWeight { boneIndex0 = chain[last], weight0 = 1f };
                 if (z >= cz[0]) return new BoneWeight { boneIndex0 = chain[0], weight0 = 1f };
-                for (int i = 0; i < chain.Length - 1; i++)
-                    if (z <= cz[i] && z >= cz[i + 1])
-                    {
-                        float t = Mathf.InverseLerp(cz[i], cz[i + 1], z);
-                        return new BoneWeight { boneIndex0 = chain[i], weight0 = 1f - t, boneIndex1 = chain[i + 1], weight1 = t };
-                    }
-                return new BoneWeight { boneIndex0 = chain[chain.Length - 1], weight0 = 1f };
+                var w = new List<KeyValuePair<int, float>>();
+                for (int i = 0; i <= last; i++)
+                {
+                    float h = 0.5f * ((i > 0 ? cz[i - 1] - cz[i] : cz[i] - cz[i + 1]) + (i < last ? cz[i] - cz[i + 1] : cz[i - 1] - cz[i]));
+                    float k = 1f - Mathf.Abs(z - cz[i]) / (1.6f * h);
+                    if (k > 0f) w.Add(new KeyValuePair<int, float>(chain[i], k));
+                }
+                w.Sort((a, b) => b.Value.CompareTo(a.Value));
+                if (w.Count > 4) w.RemoveRange(4, w.Count - 4);
+                float sum = w.Sum(p => p.Value);
+                var bw = new BoneWeight();
+                for (int i = 0; i < w.Count; i++)
+                {
+                    float v = w[i].Value / sum;
+                    if (i == 0) { bw.boneIndex0 = w[i].Key; bw.weight0 = v; }
+                    else if (i == 1) { bw.boneIndex1 = w[i].Key; bw.weight1 = v; }
+                    else if (i == 2) { bw.boneIndex2 = w[i].Key; bw.weight2 = v; }
+                    else { bw.boneIndex3 = w[i].Key; bw.weight3 = v; }
+                }
+                return bw;
             }
             weights = v =>
             {
@@ -431,22 +546,39 @@ namespace Wildlife
     /// flukes), a slower horizontal undulation, the body bending into turns, a roll when turning, a freer fluke,
     /// pectoral strokes, and a head-up arch while blowing at the surface.
     /// </summary>
+    /// <summary>
+    /// Cetacean swimming, driven by the body's centre line rather than by joint angles:
+    ///   y(s, t) = A(s) sin(phase - k s),  s = 0 head .. 1 tail tip, y in body lengths,
+    /// with A(s) small up front and growing over the rear of the body to TipAmplitude at the flukes (peak-to-peak
+    /// fluke travel of 15-25 % of the body length in real cetaceans). Each joint gets the angle that makes its
+    /// segment follow the line. The flukes pitch as a hydrofoil at the peduncle: their angle leads the heave by a
+    /// quarter stroke (trailing edge up on the downstroke). Beat frequency follows a Strouhal number of about 0.25.
+    /// </summary>
     public class ProcSwimmer : MonoBehaviour, IProcAnimated
     {
-        public float Amplitude = 14f;          // total vertical bend at the tail, degrees
-        public float Horizontal = 6f;          // total horizontal bend at the tail, degrees
-        public float BaseFrequency = 0.3f;
-        public float Exponent = 1.4f;          // how much of the body joins the stroke (lower = more)
-        public float WaveNumber = 2.2f;        // phase lag head -> tail
-        public float FlukeBoost = 1.4f;
-        public float Pitch = 4f;               // whole-body pitch against the stroke (the head dips as the tail rises)
+        public float TipAmplitude = 0.10f;     // half the peak-to-peak heave at the peduncle, in body lengths
+        public float FlukePitch = 30f;         // fluke angle to the path at mid-stroke, degrees
+        public float WaveNumber = 2.4f;        // phase lag head -> tail, radians
+        public float Strouhal = 0.25f;
+        public float MinFrequency = 0.15f;     // idle beat, Hz
+        public float LengthMeters = 10f;
+        public float Horizontal = 4f;          // slow side sway, degrees
+        public float RigidFront = 0.3f;        // the front this fraction of the body barely bends
+        public float HeadHeave = 0.02f;        // whole-body bob against the tail, in body lengths
         private Transform[] _spine;
-        private Transform _finL, _finR, _fluke;
+        private float[] _s;                    // joint positions along the body (spine joints, then the fluke joint)
+        private Transform _finL, _finR, _fluke, _rig;
+        private Vector3 _rigBase;
         private Vector3 _lastPos;
-        private float _lastYaw, _yawRate, _speed, _phase, _time, _spout;
+        private float _lastYaw, _yawRate, _speed, _phase, _spout;
         private bool _lab;
 
-        public float[] LabSpeeds => new[] { 1f, 6f };
+        public float[] LabSpeeds => new[] { 2.5f, 6f };
+
+        /// <summary>One stroke at that speed, in seconds (the lab samples a whole stroke).</summary>
+        public float Cycle(float speed) => 1f / Frequency(speed);
+
+        private float Frequency(float speed) => Mathf.Max(MinFrequency, Strouhal * speed / (2f * TipAmplitude * LengthMeters));
 
         private void Awake()
         {
@@ -465,6 +597,24 @@ namespace Wildlife
             bones.TryGetValue("Fluke", out _fluke);
             _lastPos = transform.position;
             _lastYaw = transform.eulerAngles.y;
+            // joint positions along the body, from the bind pose and the mesh's length
+            var smr = GetComponentInChildren<SkinnedMeshRenderer>(true);
+            var rig = transform.Find("Visual_rig");
+            _rig = rig;
+            if (rig != null) _rigBase = rig.localPosition;
+            if (smr == null || smr.sharedMesh == null || rig == null || _spine.Length == 0)
+                return;
+            var b = smr.sharedMesh.bounds;
+            float zMin = float.MaxValue, zMax = float.MinValue;
+            for (int i = 0; i < 8; i++)
+            {
+                var c = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                float z = rig.InverseTransformPoint(smr.transform.TransformPoint(c)).z;
+                zMin = Mathf.Min(zMin, z);
+                zMax = Mathf.Max(zMax, z);
+            }
+            var joints = _fluke != null ? _spine.Concat(new[] { _fluke }).ToArray() : _spine;
+            _s = joints.Select(j => Mathf.Clamp01((zMax - rig.InverseTransformPoint(j.position).z) / (zMax - zMin))).ToArray();
         }
 
         /// <summary>Head-up arch for a couple of seconds while the animal blows.</summary>
@@ -479,7 +629,6 @@ namespace Wildlife
             _speed = speed;
             _yawRate = speed > 3f ? 12f : 0f;   // show the turn bend in the fast sheet
             _phase = 0f;
-            _time = 0f;
             const float step = 1f / 60f;
             for (float t = 0f; t < time; t += step) Animate(step);
             Animate(0f);
@@ -501,42 +650,65 @@ namespace Wildlife
             Animate(dt);
         }
 
+        private float Envelope(float s)
+        {
+            // a little heave up front, then a steep rise over the rear of the body
+            // full amplitude at the peduncle: the flukes beyond it feather along the path instead of following the line
+            float end = _s != null && _spine != null && _s.Length > _spine.Length ? _s[_spine.Length] : 1f;
+            float r = Mathf.Clamp((s - RigidFront) / Mathf.Max(end - RigidFront, 0.05f), 0f, 1.15f);
+            return TipAmplitude * (0.015f + 0.985f * r * r);                     // grows with the square of the distance
+        }
+
+        private float Line(float s, float calm) => Envelope(s) * calm * Mathf.Sin(_phase - WaveNumber * s);
+
         private void Animate(float dt)
         {
-            _time += dt;
+            if (_s == null || _s.Length < _spine.Length)
+                return;
             _spout = Mathf.Max(0f, _spout - dt);
-            float calm = _spout > 0f ? 0.35f : 1f;
-            float freq = BaseFrequency + _speed * 0.05f;
-            _phase += dt * freq * Mathf.PI * 2f;
-            // cruising already uses most of the stroke: cetaceans swim with big, slow tail beats
-            float amp = Amplitude * (0.8f + 0.2f * Mathf.Clamp01(_speed / 6f)) * calm;
-            float side = Horizontal * calm;
+            float calm = _spout > 0f ? 0.4f : 0.85f + 0.15f * Mathf.Clamp01(_speed / 6f);
+            _phase += dt * Frequency(_speed) * Mathf.PI * 2f;
             float turn = Mathf.Clamp(_yawRate * 0.5f, -22f, 22f);         // bend into the turn
-            float roll = Mathf.Clamp(-_yawRate * 0.35f, -18f, 18f);       // bank into the turn
+            float roll = Mathf.Clamp(-_yawRate * 1.2f, -20f, 20f);        // bank into the turn
             float arch = _spout > 0f ? Mathf.Sin(Mathf.Clamp01((2.5f - _spout) / 2.5f) * Mathf.PI) : 0f;
 
-            float prevV = 0f, prevH = 0f;
             int n = _spine.Length;
+            bool hasFluke = _fluke != null && _s.Length > n;
+            // points along the line: every joint, then the tail tip; segment i runs from point i to point i + 1
+            int pts = n + (hasFluke ? 1 : 0) + 1;
+            var sp = new float[pts];
+            for (int i = 0; i < pts - 1; i++) sp[i] = _s[i];
+            sp[pts - 1] = 1f;
+            float prevPitch = 0f, prevYaw = 0f;
             for (int i = 0; i < n; i++)
             {
-                float k = (float)i / (n - 1);                               // 0 head .. 1 tail
-                float shape = Mathf.Pow(k, Exponent);
-                float v = amp * shape * Mathf.Sin(_phase - k * WaveNumber) - arch * 8f * (1f - k) + arch * 6f * k;   // total bend at k
-                float h = side * Mathf.Pow(k, 1.3f) * Mathf.Sin(_phase * 0.5f - k * 1.6f) + turn * k;
-                float pitch = i == 0 ? -Pitch * calm * Mathf.Sin(_phase + 0.6f) : 0f;
-                var rot = Quaternion.Euler(v - prevV + pitch, h - prevH, i == 0 ? roll : 0f);
-                _spine[i].localRotation = rot;
-                prevV = v;
-                prevH = h;
+                float ds = Mathf.Max(sp[i + 1] - sp[i], 1e-3f);
+                float pitch = Mathf.Atan2(Line(sp[i + 1], calm) - Line(sp[i], calm), ds) * Mathf.Rad2Deg;   // + = tail up
+                pitch += arch * (i == 0 ? -10f : i == n - 1 ? 8f : 0f);                                      // blow: head up
+                float mid = (sp[i] + sp[i + 1]) / 2f;
+                float yaw = Horizontal * calm * mid * mid * Mathf.Sin(_phase * 0.5f - mid * 1.6f) + turn * mid;
+                _spine[i].localRotation = Quaternion.Euler(pitch - prevPitch, yaw - prevYaw, i == 0 ? roll : 0f);
+                prevPitch = pitch;
+                prevYaw = yaw;
             }
-            if (_fluke != null)
+            if (hasFluke)
             {
-                // the fluke whips: its own extra bend, lagging the body wave
-                float fv = amp * 0.45f * FlukeBoost * Mathf.Sin(_phase - WaveNumber - 0.9f);
-                float fh = side * 0.5f * Mathf.Sin(_phase * 0.5f - 2.2f) + turn * 0.3f;
-                _fluke.localRotation = Quaternion.Euler(fv, fh, 0f);
+                // hydrofoil feathering: the flukes stay within +-FlukePitch of the swim path (flat at the top and
+                // bottom of the stroke, steepest at mid-stroke, trailing edge lagging), so against the tail stock
+                // they turn the other way: flatter than the stock, never steeper
+                float sf = _s[n];
+                float heaveVel = Mathf.Cos(_phase - WaveNumber * sf);
+                float flukeToPath = -FlukePitch * calm * heaveVel;
+                // spread the turn over the last spine joint (40 %) and the fluke joint (60 %): a curve, not a kink
+                float rel = flukeToPath - prevPitch;
+                _spine[n - 1].localRotation = Quaternion.Euler(0.4f * rel, 0f, 0f) * _spine[n - 1].localRotation;
+                _fluke.localRotation = Quaternion.Euler(0.6f * rel, turn * 0.3f, 0f);
             }
-            float fin = Mathf.Sin(_phase * 0.5f) * 5f;
+            // the whole body bobs a little against the tail
+            if (_rig != null)
+                _rig.localPosition = _rigBase + Vector3.up * (-HeadHeave * LengthMeters * calm * Mathf.Sin(_phase - WaveNumber * 0.9f));
+            // flippers: small paddle lagging the stroke by ~0.2 cycle, and steering in turns
+            float fin = Mathf.Sin(_phase - 1.25f) * 4f;
             float steer = turn * 0.4f;
             if (_finL != null) _finL.localRotation = Quaternion.Euler(0f, 0f, fin - 3f + steer);
             if (_finR != null) _finR.localRotation = Quaternion.Euler(0f, 0f, -fin + 3f + steer);
