@@ -6,6 +6,99 @@ using UnityEngine;
 namespace Wildlife
 {
     /// <summary>A creature visual animated in code (no Animator clips); the lab can drive it at a given speed.</summary>
+    /// <summary>
+    /// A rig made in Blender (tools/blender_rig_swimmer.py) for a .tam model: bones (head positions in model space),
+    /// skin weights per vertex (same vertex order as the .tam), and the swim cycle sampled as pitch curves per bone.
+    /// The Blender preview deforms with exactly these, so what was checked there is what the game shows.
+    /// </summary>
+    internal class RigFile
+    {
+        public List<ProcRig.Bone> Bones = new List<ProcRig.Bone>();
+        public BoneWeight[] Weights;
+        public Dictionary<string, float[]> Curves = new Dictionary<string, float[]>();
+        public int Phases;
+        public float Tip;
+
+        private static readonly Dictionary<string, RigFile> Cache = new Dictionary<string, RigFile>();
+
+        public static RigFile Get(string model)
+        {
+            if (Cache.TryGetValue(model, out var r)) return r;
+            Cache[model] = r = Load(model);
+            return r;
+        }
+
+        private static RigFile Load(string model)
+        {
+            string path = System.IO.Path.Combine(Look.PluginDir, "models", model + ".rig");
+            if (!System.IO.File.Exists(path)) return null;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var lines = System.IO.File.ReadAllLines(path);
+            if (lines.Length == 0 || lines[0] != "RIG1") return null;
+            var rf = new RigFile();
+            int i = 1, nv = 0;
+            var names = new List<string>();
+            while (i < lines.Length)
+            {
+                var a = lines[i].Split(' ');
+                if (a[0] == "vertices") { nv = int.Parse(a[1]); i++; }
+                else if (a[0] == "phases") { rf.Phases = int.Parse(a[1]); i++; }
+                else if (a[0] == "tip") { rf.Tip = float.Parse(a[1], inv); i++; }
+                else if (a[0] == "bones")
+                {
+                    int n = int.Parse(a[1]);
+                    var rows = new List<string[]>();
+                    for (int k = 0; k < n; k++) rows.Add(lines[i + 1 + k].Split(' '));
+                    foreach (var b in rows) names.Add(b[0]);
+                    foreach (var b in rows)
+                        rf.Bones.Add(new ProcRig.Bone
+                        {
+                            Name = b[0],
+                            Parent = b[1] == "-" ? -1 : names.IndexOf(b[1]),
+                            Pos = new Vector3(float.Parse(b[2], inv), float.Parse(b[3], inv), float.Parse(b[4], inv)),
+                        });
+                    i += n + 1;
+                }
+                else if (a[0] == "curve")
+                {
+                    var c = new float[a.Length - 2];
+                    for (int k = 0; k < c.Length; k++) c[k] = float.Parse(a[k + 2], inv);
+                    rf.Curves[a[1]] = c;
+                    i++;
+                }
+                else if (a[0] == "weights")
+                {
+                    int n = int.Parse(a[1]);
+                    rf.Weights = new BoneWeight[n];
+                    for (int k = 0; k < n; k++)
+                    {
+                        var w = lines[i + 1 + k].Split(' ');
+                        var bw = new BoneWeight();
+                        int m = w.Length / 2;
+                        if (m > 0) { bw.boneIndex0 = int.Parse(w[0]); bw.weight0 = float.Parse(w[1], inv); }
+                        if (m > 1) { bw.boneIndex1 = int.Parse(w[2]); bw.weight1 = float.Parse(w[3], inv); }
+                        if (m > 2) { bw.boneIndex2 = int.Parse(w[4]); bw.weight2 = float.Parse(w[5], inv); }
+                        if (m > 3) { bw.boneIndex3 = int.Parse(w[6]); bw.weight3 = float.Parse(w[7], inv); }
+                        rf.Weights[k] = bw;
+                    }
+                    i += n + 1;
+                }
+                else i++;
+            }
+            if (rf.Weights == null || rf.Weights.Length != nv) return null;
+            return rf;
+        }
+
+        /// <summary>Curve value at a cycle phase in [0, 1), linear between samples.</summary>
+        public float Sample(string bone, float ph)
+        {
+            if (!Curves.TryGetValue(bone, out var c) || c.Length == 0) return 0f;
+            float x = Mathf.Repeat(ph, 1f) * c.Length;
+            int i0 = (int)x % c.Length, i1 = (i0 + 1) % c.Length;
+            return Mathf.Lerp(c[i0], c[i1], x - Mathf.Floor(x));
+        }
+    }
+
     public interface IProcAnimated
     {
         /// <summary>Pose the rig as if moving at <paramref name="speed"/> m/s, <paramref name="time"/> seconds into the motion.</summary>
@@ -564,6 +657,8 @@ namespace Wildlife
         public float LengthMeters = 10f;
         public float Horizontal = 4f;          // slow side sway, degrees
         public float RigidFront = 0.3f;        // the front this fraction of the body barely bends
+        public string RigModel;                // models/<name>.rig: Blender rig + sampled swim cycle (see RigFile)
+        private RigFile _rigFile;
         public float HeadHeave = 0.02f;        // whole-body bob against the tail, in body lengths
         private Transform[] _spine;
         private float[] _s;                    // joint positions along the body (spine joints, then the fluke joint)
@@ -589,6 +684,8 @@ namespace Wildlife
 
         internal void Init(Dictionary<string, Transform> bones)
         {
+            _rigFile = string.IsNullOrEmpty(RigModel) ? null : RigFile.Get(RigModel);
+            _boneMap = bones;
             var list = new List<Transform>();
             for (int i = 0; bones.TryGetValue("Spine" + i, out var t); i++) list.Add(t);
             _spine = list.ToArray();
@@ -661,8 +758,42 @@ namespace Wildlife
 
         private float Line(float s, float calm) => Envelope(s) * calm * Mathf.Sin(_phase - WaveNumber * s);
 
+        private Dictionary<string, Transform> _boneMap;
+
+        /// <summary>The Blender cycle (pitch curves per bone), plus turns, roll and the blow arch on top.</summary>
+        private void AnimateCurves(float dt)
+        {
+            _spout = Mathf.Max(0f, _spout - dt);
+            float calm = _spout > 0f ? 0.4f : 0.85f + 0.15f * Mathf.Clamp01(_speed / 6f);
+            _phase += dt * Frequency(_speed) * Mathf.PI * 2f;
+            float ph = _phase / (Mathf.PI * 2f);
+            float turn = Mathf.Clamp(_yawRate * 0.5f, -22f, 22f);
+            float roll = Mathf.Clamp(-_yawRate * 1.2f, -20f, 20f);
+            float arch = _spout > 0f ? Mathf.Sin(Mathf.Clamp01((2.5f - _spout) / 2.5f) * Mathf.PI) : 0f;
+            int n = _spine.Length;
+            for (int i = 0; i < n; i++)
+            {
+                float k = n > 1 ? (float)i / (n - 1) : 0f;
+                float pitch = _rigFile.Sample(_spine[i].name, ph) * calm + arch * (i == 0 ? -10f : i == n - 1 ? 8f : 0f);
+                float yaw = turn * (k * k - (i > 0 ? ((float)(i - 1) / (n - 1)) * ((float)(i - 1) / (n - 1)) : 0f));
+                _spine[i].localRotation = Quaternion.Euler(pitch, yaw, i == 0 ? roll : 0f);
+            }
+            if (_fluke != null)
+                _fluke.localRotation = Quaternion.Euler(_rigFile.Sample("Fluke", ph) * calm, turn * 0.3f, 0f);
+            float steer = turn * 0.4f;
+            if (_finL != null) _finL.localRotation = Quaternion.Euler(0f, 0f, _rigFile.Sample("FinL", ph) - 3f + steer);
+            if (_finR != null) _finR.localRotation = Quaternion.Euler(0f, 0f, _rigFile.Sample("FinR", ph) + 3f + steer);
+            if (_rig != null)
+                _rig.localPosition = _rigBase + Vector3.up * (-HeadHeave * LengthMeters * calm * Mathf.Sin(_phase - 0.9f * WaveNumber));
+        }
+
         private void Animate(float dt)
         {
+            if (_rigFile != null && _spine != null && _spine.Length > 0)
+            {
+                AnimateCurves(dt);
+                return;
+            }
             if (_s == null || _s.Length < _spine.Length)
                 return;
             _spout = Mathf.Max(0f, _spout - dt);

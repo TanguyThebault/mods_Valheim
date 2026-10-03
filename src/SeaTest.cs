@@ -21,7 +21,7 @@ namespace Wildlife
         private static Coroutine s_log;
 
         public override string Name => "ta_sea";
-        public override string Help => "ta_sea goto [depth] | spawn [whales] [orcas] | log [seconds|off] - sea test bench";
+        public override string Help => "ta_sea goto [depth] | spawn [whales] [orcas] | log [seconds|off] | film [seconds] - sea test bench";
 
         public override void Run(string[] args)
         {
@@ -83,6 +83,25 @@ namespace Wildlife
                         }
                     }
                     Print("ta_sea: spawned " + n);
+                    return;
+                }
+                case "film":
+                {
+                    float secs = args.Length > 1 ? Parse(args[1], 36f) : 36f;
+                    string want = args.Length > 2 ? args[2].ToLowerInvariant() : "";
+                    var target = SeaSwimmerRegistry.All.Where(x => x != null && x.name.ToLowerInvariant().Contains(want))
+                        .OrderBy(x => Vector3.Distance(x.transform.position, player.transform.position)).FirstOrDefault();
+                    if (target == null)
+                    {
+                        Print("ta_sea: nothing to film");
+                        return;
+                    }
+                    FilmCamera.Target = target.transform;
+                    target.S.Depth = 2.5f;              // swim just under the surface while filmed: readable through the water
+                    FilmCamera.Length = target.name.Contains("Whale") ? 14f : 7f;
+                    FilmCamera.Start = Time.time;
+                    FilmCamera.Until = Time.time + secs;
+                    Print("ta_sea: filming " + target.name + " for " + secs + " s");
                     return;
                 }
                 case "log":
@@ -170,6 +189,44 @@ namespace Wildlife
                 s_out.WriteLine((prefab != null ? prefab.name : zdo.GetPrefab().ToString()) + " " + zdo.GetPosition().ToString("F0"));
             }
             catch (System.Exception) { }
+        }
+    }
+}
+
+namespace Wildlife
+{
+    /// <summary>
+    /// Filming rig for checks in game: `ta_sea film [seconds=36]` takes over the camera and orbits the nearest sea
+    /// swimmer - a third of the time at 1.2 body lengths, then 2.5, then 5 - while the height sweeps from above the
+    /// animal to below it (underwater). Record the window meanwhile (um win record).
+    /// </summary>
+    [HarmonyLib.HarmonyPatch(typeof(GameCamera), "LateUpdate")]
+    internal static class FilmCamera
+    {
+        internal static float Until, Start;
+        internal static Transform Target;
+        internal static float Length = 10f;
+
+        private static void Postfix(GameCamera __instance)
+        {
+            if (Target == null || Time.time > Until)
+            {
+                Target = null;
+                return;
+            }
+            float u = (Time.time - Start) / Mathf.Max(Until - Start, 1f);   // 0..1 over the take
+            int part = Mathf.Min(2, (int)(u * 3f));
+            float dist = Length * (part == 0 ? 1.0f : part == 1 ? 1.8f : 3f);
+            float local = u * 3f - part;                                      // 0..1 inside the part
+            float az = local * Mathf.PI * 2f * 1.25f;
+            float el = Mathf.Lerp(45f, 10f, Mathf.PingPong(local * 2f, 1f)) * Mathf.Deg2Rad;   // stay above the water
+            var c = Target.position;
+            var fwd = Target.forward; fwd.y = 0f; fwd.Normalize();
+            var right = Vector3.Cross(Vector3.up, fwd);
+            var dir = (right * Mathf.Cos(az) + fwd * Mathf.Sin(az)) * Mathf.Cos(el) + Vector3.up * Mathf.Sin(el);
+            var t = __instance.transform;
+            t.position = c + dir * dist;
+            t.rotation = Quaternion.LookRotation(c - t.position, Vector3.up);
         }
     }
 }

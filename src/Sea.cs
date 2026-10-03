@@ -59,7 +59,7 @@ namespace Wildlife
                 BreachChance = 0f, Wander = 25f, Species = "whale",
             }, finZ: new Vector2(0.45f, 0.8f), anim: a =>
             {
-                a.TipAmplitude = 0.14f; a.FlukePitch = 22f; a.WaveNumber = 6f; a.Strouhal = 0.37f; a.MinFrequency = 0.14f; a.LengthMeters = s_whaleLength.Value; a.Horizontal = 3f; a.RigidFront = 0.45f; a.HeadHeave = 0.015f;
+                a.TipAmplitude = 0.10f; a.FlukePitch = 22f; a.WaveNumber = 6f; a.Strouhal = 0.37f; a.MinFrequency = 0.14f; a.LengthMeters = s_whaleLength.Value; a.Horizontal = 3f; a.RigidFront = 0.45f; a.HeadHeave = 0.015f;
             }, spout: new Vector2(6.5f, 1.4f));
             Make(OrcaPrefab, "orca", "$ocean_orca", template, mist, s_orcaLength.Value, new SeaSwimmer.Settings
             {
@@ -99,14 +99,33 @@ namespace Wildlife
             foreach (var c in go.GetComponents<MeshFilter>()) Object.DestroyImmediate(c);
             go.AddComponent<ZSyncTransform>();
 
-            var bones = ProcRig.SwimmerBones(d, finZ.x, finZ.y, out var allowed, out var weights);
+            // a Blender rig (models/<model>.rig: bones, skin, swim cycle) wins over the procedural one
+            var rigFile = RigFile.Get(model);
+            List<ProcRig.Bone> bones;
+            System.Func<int, int[]> allowed;
+            System.Func<int, BoneWeight> weights;
+            if (rigFile != null && rigFile.Weights.Length == d.Pos.Length)
+            {
+                bones = rigFile.Bones;
+                allowed = v => null;
+                weights = v => rigFile.Weights[v];
+                Plugin.Log.LogInfo(prefabName + ": Blender rig, " + bones.Count + " bones, cycle of " + rigFile.Phases + " samples");
+            }
+            else
+            {
+                rigFile = null;
+                bones = ProcRig.SwimmerBones(d, finZ.x, finZ.y, out allowed, out weights);
+            }
             var rig = ProcRig.Build(go, d, bones, allowed, template, length, model + "_rig", weights, glossiness: 0.3f);   // wet skin, but not a mirror for the sky
             // centre the body on the object so it swims around its own position, not its belly
             var visual = go.transform.Find("Visual_rig");
             visual.localPosition = new Vector3(0f, -length * d.Bounds.size.y / d.Bounds.size.z * 0.5f, 0f);
 
             AddBlowhole(go, d, visual, rig, mist, spout.x, spout.y);
-            anim(go.AddComponent<ProcSwimmer>());
+            var swimmer = go.AddComponent<ProcSwimmer>();
+            swimmer.RigModel = rigFile != null ? model : null;
+            anim(swimmer);
+            swimmer.Init(rig);
             go.AddComponent<SeaSwimmer>().Set(settings);
             var h = go.AddComponent<HoverText>();
             h.m_text = hover;

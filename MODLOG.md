@@ -470,3 +470,28 @@ caudale 15-25 % de la longueur crête à crête, pas ±20-30° en quadrature, St
   flanc rendu symétrique (pan du maillage généré). Matériau : la gloss map du lièvre (autres UV) est retirée, normales
   double face activées ; tangentes réparées (SafeTangents).
 - Évaluation par un 2e agent (vraisemblance, seuil 7,5) : 5,0 -> 6,5 -> 7,0 -> 7,5 (baleine 7,5, orque 8,0, modèle 7,5).
+
+## v0.17 — 2026-10-04 : baleine refaite (Rodin), rig + cycle de nage faits dans Blender, vérifiés par étapes
+Bilan de Lekinox sur la v0.16 : échec (défauts du modèle sous certains angles, animations peu convaincantes,
+vérifications insuffisantes). Nouveau pipeline, avec une porte de validation à chaque étape :
+- Modèle : 2 références flux/schnell (profil + dessus, ~0,01 $) -> Hyper3D Rodin 2.5 « 18K Quad » (0,40 $) :
+  une seule pièce fermée, manifold, sans auto-intersection. tools/blender_fix_whale.py (Blender en module Python,
+  bpy 5.0.1 dans ~/tools/blender-env) : soudure des coutures UV, symétrisation (côté sans poche
+  miroité), nageoires en palettes (corde mise à l'échelle avec la longueur, bout arrondi, courbure), lissage du
+  corps, 12k triangles. Texture repeinte depuis la géométrie (motif baleine à bosse symétrique).
+- Contrôles : tools/mesh_qa.py (fragments, arêtes ouvertes/non manifold, enroulement, auto-intersections, triangles
+  aberrants, asymétrie, proportions de baleine à bosse) et tools/blender_turntable.py (16 azimuts x 3 hauteurs,
+  dessous compris, texturé + matcap, lit directement le .tam du jeu).
+- Rig : tools/blender_rig_swimmer.py construit squelette + poids depuis le .tam (même ordre de sommets que le jeu),
+  échantillonne le cycle de nage en courbes (32 phases), exporte models/<nom>.rig (texte) et rend des aperçus MP4 +
+  mesures (course de queue, épaisseur du pédoncule). Les poids « heat » de Blender échouent sur ces maillages : poids
+  lissés le long de la colonne (noyaux en tente, 4 influences), nageoires sur leur os. Le C# (RigFile, ProcSwimmer)
+  joue exactement ces courbes et ajoute vitesse, virages, roulis et souffle.
+- Orque : modèle conservé, caudale mise à plat (lobes relevés au repos -> crochet), même pipeline de rig.
+- Mesures finales : baleine queue 19,9 % de la longueur, pédoncule >= 95 % de son épaisseur, articulations <= 12,8°,
+  caudale <= 14° ; orque 18,4 %, >= 94 %, <= 9,3°.
+- Évaluateur (2e agent, vraisemblance, seuil 7,5) : modèle 6,5 -> 7,0 -> 7,5 ; animation 7,0 -> 7,5 (baleine 7,5,
+  orque 7,5).
+- Vérification en jeu : `ta_sea film [s] [whale|orca]` (caméra en orbite, animal près de la surface) + um win record ;
+  les vidéos sont surexposées par la capture (pas par le jeu).
+- Coût fal de l'étape : ~0,42 $.

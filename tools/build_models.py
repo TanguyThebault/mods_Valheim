@@ -21,7 +21,9 @@ MODELS = {
     "owl_flying": ("owl_flying_3d.glb", 0),
     "mouse": ("mouse_3d.glb", 0),
     # Trellis 2 with a 5000-face target (decimating its 94k-face output left shards on the back)
-    "whale": ("whale3_3d.glb", 90),   # generated lying along x, head towards -x
+    # v0.17: Rodin 2.5 quad mesh, cleaned in Blender (tools/blender_fix_whale.py: symmetrized, longer flippers,
+    # smoothed, 12k tris); head towards +z already
+    "whale": ("whale4_clean.glb", 0),
     "orca": ("orca3_3d.glb", 0),      # Trellis 2, 5000 faces (the first trellis orca had a stray flap under the belly)
 }
 
@@ -168,7 +170,7 @@ def clean_shells(pos, nrm, uv, faces, min_faces=20):
     return pos2.astype(np.float32), nrm2.astype(np.float32), uv2.astype(np.float32), faces2
 
 
-CLEAN = {"whale": clean_shells}
+CLEAN = {}   # was {"whale": clean_shells} for the trellis whale
 
 
 def straighten_tail(pos, nrm, z_from):
@@ -363,12 +365,53 @@ def rebuild_whale(pos, nrm, uv, faces):
     return pos.astype(np.float32), nrm.astype(np.float32), uv.astype(np.float32), faces.astype(np.int32), stretched
 
 
-STRAIGHTEN = {"whale": 0.40}
-FLAT_FLUKES = {}   # was {"whale": 0.13}: forcing normals up broke two-sided lighting (black fluke)
+STRAIGHTEN = {}   # was {"whale": 0.40}: the trellis whale was frozen mid-dive
+FLAT_FLUKES = {}
+# Flukes whose lobes are upturned at rest (the orca): squash the fluke region's height toward the tail stock's
+# centre line, fading in behind the peduncle, so the flukes become a level blade (edge-on from the side).
+LEVEL_FLUKES = {"orca": (0.10, 0.3)}       # (fluke region: normalised z from the tail tip, height kept)   # was {"whale": 0.13}: forcing normals up broke two-sided lighting (black fluke)
 
 RECOLOR = {}
 # Textures painted from the model's own geometry, replacing the generated texture (the whale's had odd blotches).
-PAINT = {"whale": whale_colour}
+REBUILD = set()   # was {"whale"}: procedural crescent and stretched flippers on the trellis whale
+
+
+def humpback_colour(P, N):
+    """Humpback pattern, symmetric (noise uses the distance to the mid-plane, as both halves share their UVs):
+    black-slate back and tail stock, white throat and front belly behind a soft, irregular mottled border,
+    white flippers with a grey root, flukes dark on top and white underneath with a dark trailing edge."""
+    x, y, z = P[..., 0], P[..., 1], P[..., 2]
+    side = np.abs(x - 0.5)
+    Q = np.stack([side, y, z], -1)
+    back = np.array([0.17, 0.18, 0.20]) * (0.9 + 0.2 * _noise(Q, 7.0, 1.0))[..., None]
+    white = np.array([0.86, 0.87, 0.86]) * (0.94 + 0.06 * _noise(Q, 11.0, 2.0))[..., None]
+    grey = np.array([0.45, 0.47, 0.49])
+    # border height: high under the throat, low toward the tail stock, wavy and mottled
+    # three noise frequencies break the line up into patches (1-5 % of the length), like a humpback's mottling
+    border = (0.30 + 0.16 * np.clip((z - 0.3) / 0.4, 0, 1) + 0.075 * (_noise(Q, 6.0, 4.0) - 0.5)
+              + 0.035 * (_noise(Q, 16.0, 8.0) - 0.5) + 0.02 * (_noise(Q, 38.0, 9.0) - 0.5))
+    down = np.clip(-N[..., 1] * 1.5 + 0.4, 0, 1)
+    belly = np.clip((border - y) / 0.05, 0, 1) * down
+    mott = _noise(Q, 24.0, 5.0)
+    belly = np.where((belly > 0.15) & (belly < 0.85), np.clip(belly + (mott - 0.5) * 0.9, 0, 1), belly)
+    col = back * (1 - belly[..., None]) + white * belly[..., None]
+    # a few white flecks on the flanks above the border
+    fleck = (_noise(Q, 45.0, 11.0) > 0.86) & (y < border + 0.12) & (y > border) & (z > 0.25) & (z < 0.8)
+    col[fleck] = col[fleck] * 0.4 + white[fleck] * 0.6
+    # flippers: white, grey toward the body
+    fin = (side > 0.14) & (z > 0.4) & (z < 0.85)
+    root = np.clip((0.24 - side) / 0.1, 0, 1)[..., None]
+    col[fin] = (white * (1 - root) + grey * root)[fin]
+    # flukes: underside white with a dark trailing edge and spots, top dark
+    fl = z < 0.14
+    under = fl & (N[..., 1] < 0)
+    edge = np.clip((0.035 - z) / 0.02, 0, 1)
+    uw = white * (1 - edge[..., None]) + back * edge[..., None]      # no spots: paired dots read as a face
+    col[under] = uw[under]
+    return np.clip(col, 0, 1)
+
+
+PAINT = {"whale": humpback_colour}
 
 
 def texture_of(mesh):
@@ -404,7 +447,7 @@ def convert(src, out_dir, name, yaw=0):
         pos, nrm = pos @ r.T, nrm @ r.T
     if name in STRAIGHTEN:
         pos, nrm = straighten_tail(pos, nrm, STRAIGHTEN[name])
-    if name == "whale":
+    if name in REBUILD:
         uv0 = np.array(mesh.visual.uv, dtype=np.float32)
         faces0 = np.array(mesh.faces, dtype=np.int32)
         before = pos.copy()
@@ -417,6 +460,22 @@ def convert(src, out_dir, name, yaw=0):
         nrm = weld_normals(pos, nrm, np.ptp(pos[:, 2]))
     else:
         uv_override = faces_override = None
+    if name in LEVEL_FLUKES:
+        zone, keep_h = LEVEL_FLUKES[name]
+        Lz = np.ptp(pos[:, 2])
+        zn = (pos[:, 2] - pos[:, 2].min()) / Lz
+        xc = np.median(pos[:, 0])
+        stock = (np.abs(zn - (zone + 0.03)) < 0.015) & (np.abs(pos[:, 0] - xc) < 0.03 * Lz)
+        yc = (pos[stock, 1].max() + pos[stock, 1].min()) / 2
+        f = np.clip((zone - zn) / (0.4 * zone), 0, 1)              # 0 at the peduncle -> 1 a bit behind it
+        f = f * f * (3 - 2 * f)
+        scale = 1 - f * (1 - keep_h)
+        pos = pos.copy()
+        pos[:, 1] = yc + (pos[:, 1] - yc) * scale
+        nrm = nrm.copy()
+        nrm[:, 1] = nrm[:, 1] / np.maximum(scale, 1e-3)              # normals follow the squash
+        nrm /= np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-9
+        print(f"  {name}: flukes levelled ({int((f > 0).sum())} vertices)")
     if name in FLAT_FLUKES:
         # the flukes are a thin blade with few, large triangles: one vertex normal pointing down darkened a whole
         # fluke once it pitched. Give the blade a smooth, mostly upward normal.
