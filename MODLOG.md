@@ -289,3 +289,24 @@ gros.
   avec UnityPy, alignement et régions rejoués en Python et rendus en superposition : mulot à plat sur ses
   4 pattes, chouette alignée sur les os du corbeau.
 - Mulot : échelle 0.22 -> 0.44 (modifiée aussi dans le .cfg).
+
+## Test piloté par l'agent (um win), 2026-10-03
+- `um win shot` échouait : le ffmpeg 6.0.1 de miniconda passe devant dans le PATH et n'a pas gfxcapture. Solution :
+  UM_FFMPEG_WIN=<ffmpeg 9.0.2 WinGet>.
+- Lancer via Steam avec des arguments déclenche l'invite Steam « Lancer le jeu avec des arguments
+  personnalisés » ; l'agent ne la valide pas à la place de l'utilisateur (Annuler) et lance valheim.exe
+  directement (steam_appid.txt présent). Dans ce cas la console BepInEx devient la MainWindow du processus,
+  donc WinDrive visait la console : [Logging.Console] Enabled = false dans BepInEx.cfg.
+- La souris relative (`rel`) fait tourner la caméra ; il faut de grandes valeurs (500-1200).
+- Les captures fixes `um win shot` paraissent très surexposées, alors que les images extraites de `um win
+  record` ont des couleurs normales : la surexposition est un artefact de la capture fixe, pas du jeu.
+- Scène de test : commandes console `ta_show <prefab> [distance] [hauteur] [fly] [front]` (créature figée
+  devant la caméra : IA coupée, sans gravité, modèle posé ou en vol pour les oiseaux) et `ta_clear`.
+- Observé : le mulot généré est reconnaissable (grosses oreilles, œil noir, museau, corps ramassé) ; posture
+  voûtée = idle du lièvre. La longue queue sur le seul os Tail se relevait en « aileron », d'où ce correctif :
+  la moitié distale de la queue est liée à Hips, la base à Tail + Hips (pas encore vérifié en jeu). La
+  chouette posée et en vol est reconnaissable (disque facial, bec crochu, ailes qui battent sur les os du
+  corbeau).
+- Cape de renard : fort reflet blanc à l'épaule (là où sont la tête de loup et le fermoir en métal,
+  WolfCapeChain), qui disparaît quand on l'enlève. À traiter : ne pas teinter le métal, vérifier la
+  brillance.

@@ -366,7 +366,8 @@ namespace ThrowingAxe
             Transform(d, rot, scale, src, dst, out var pos, out var nrm);
 
             int[] B(params string[] names) => names.Where(sk.Has).Select(n => sk.Index[n]).ToArray();
-            var tail = B("Tail");
+            var tailRoot = B("Tail", "Hips");
+            var hips = B("Hips");
             var head = B("Head", "Neck");
             var earL = B("Ear.l", "ear1.l");
             var earR = B("Ear.r", "ear1.r");
@@ -380,7 +381,9 @@ namespace ThrowingAxe
             {
                 Vector3 n = d.Norm(i);
                 bool isLeft = d.Pos[i].x < d.Bounds.center.x;   // the model's left is -x
-                if (n.z < 0.33f) return tail;
+                // The hare's tail bone flicks up; a long mouse tail on it alone sticks up like a fin. Only the
+                // base follows the tail bone, the rest trails with the hips.
+                if (n.z < 0.33f) return n.z < 0.22f ? hips : tailRoot;
                 if (n.y > 0.78f && n.z > 0.6f) return isLeft ? earL : earR;
                 if (n.z > 0.76f) return head;
                 if (n.y < 0.32f) return n.z > 0.6f ? (isLeft ? frontL : frontR) : (isLeft ? backL : backR);

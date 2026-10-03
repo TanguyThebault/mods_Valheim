@@ -66,6 +66,8 @@ namespace ThrowingAxe
             AddLocalization();
             PrefabManager.OnVanillaPrefabsAvailable += CreateItem;
             new Harmony(Guid).PatchAll();
+            CommandManager.Instance.AddConsoleCommand(new ShowCommand());
+            CommandManager.Instance.AddConsoleCommand(new ClearCommand());
             Log.LogInfo("Throwing Axe " + Version + " loaded");
         }
 
