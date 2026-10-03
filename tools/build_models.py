@@ -20,7 +20,8 @@ MODELS = {
     "owl_perched": ("owl_perched_3d.glb", 0),
     "owl_flying": ("owl_flying_3d.glb", 0),
     "mouse": ("mouse_3d.glb", 0),
-    "whale": ("whale_3d.glb", 0),
+    # Trellis 2 with a 5000-face target (decimating its 94k-face output left shards on the back)
+    "whale": ("whale3_3d.glb", 90),   # generated lying along x, head towards -x
     "orca": ("orca_3d.glb", 90),     # generated lying along x, head towards -x
 }
 

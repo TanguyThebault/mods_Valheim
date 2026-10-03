@@ -32,7 +32,7 @@ namespace Wildlife
 
         public static void BindConfig(ConfigFile config)
         {
-            s_scale = config.Bind("Mouse", "Scale", 0.44f, "Size relative to the vanilla hare (restart).");
+            s_scale = config.Bind("Mouse", "Scale", 0.88f, "Size relative to the vanilla hare (restart).");
             s_meatChance = config.Bind("Mouse", "MeatChance", 15f, "Chance (%) that a mouse leaves meat (restart).");
             s_maxSpawned = config.Bind("Mouse", "MaxSpawned", 4, "Max mice around a player (restart).");
             s_earScale = config.Bind("Mouse", "EarScale", new Vector3(0.55f, 0.45f, 0.55f), "Scale of the ear bones (restart).");

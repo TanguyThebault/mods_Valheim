@@ -394,3 +394,17 @@ gros.
 - Vérifié au labo : mulot à l'arrêt, au trot et au galop crédibles ; baleine et orque texturées qui ondulent.
   Pas encore vu en monde ouvert : spawns marins, nage, mulot en mouvement réel, cadavre, renard
   (faim, mulots, fuite), corbeaux vanilla, overlay, vol des oiseaux.
+
+## v0.13.1 : correctifs des modèles (mulot x2, onde de l'orque, nouvelle baleine)
+- Mulot : [Mouse] Scale 0.44 -> 0.88 (défaut et .cfg).
+- Orque, « petit problème de squelette » : les rotations des vertèbres s'additionnent le long de la chaîne, et
+  donner à chaque vertèbre la courbe entière repliait la queue. Désormais chaque vertèbre n'ajoute que sa
+  part (bend(k_i) - bend(k_i-1)) ; Amplitude = courbure totale au bout (orque 18°, baleine 14°). Battement
+  des pectorales réduit à ±5° (il entraînait un bout du ventre).
+- Baleine (modèle, texture et animation à revoir) : l'ancienne génération trellis avait la queue recourbée
+  dans le maillage et une texture tachée. Nouveau concept flux (graine 27 : corps droit, caudale à plat,
+  longues pectorales, vue 3/4 surélevée). Trellis 2 brut = 94 772 faces ; la décimation pymeshlab avec
+  préservation de texture plafonnait (46 k, puis 8.6 k en passes assouplies) et hérissait le dos d'éclats.
+  Solution : Trellis 2 avec --faces 5000 --texture 1024, d'où 4 824 faces propres (couchée le long de x,
+  tournée de 90° dans build_models.py). Coût fal de cette passe : environ 0.15 $ (2 images, 2 Trellis 2).
+- Vérifié au labo : baleine lisse et texturée qui ondule ; onde de l'orque sans repli.

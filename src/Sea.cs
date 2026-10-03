@@ -45,11 +45,11 @@ namespace Wildlife
             Make(WhalePrefab, "whale", "$ocean_whale", template, s_whaleLength.Value, new SeaSwimmer.Settings
             {
                 Speed = 2.6f, TurnRate = 14f, Depth = 7f, MinDepth = 14f, SurfaceEvery = 50f, SurfaceFor = 9f, BreachChance = 0f,
-            }, finZ: new Vector2(0.45f, 0.78f), amplitude: 10f, frequency: 0.22f);
+            }, finZ: new Vector2(0.45f, 0.8f), amplitude: 14f, frequency: 0.22f);
             Make(OrcaPrefab, "orca", "$ocean_orca", template, s_orcaLength.Value, new SeaSwimmer.Settings
             {
                 Speed = 5.5f, TurnRate = 35f, Depth = 4f, MinDepth = 8f, SurfaceEvery = 25f, SurfaceFor = 5f, BreachChance = 0.3f,
-            }, finZ: new Vector2(0.48f, 0.75f), amplitude: 15f, frequency: 0.45f);
+            }, finZ: new Vector2(0.48f, 0.75f), amplitude: 18f, frequency: 0.45f);
             AddSpawn(WhalePrefab, 16f, s_whaleMax.Value, 1, 1);
             AddSpawn(OrcaPrefab, 9f, s_orcaMax.Value, 2, 4);
         }

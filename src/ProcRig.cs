@@ -452,18 +452,22 @@ namespace Wildlife
             _time += dt;
             float freq = BaseFrequency + _speed * 0.06f;
             _phase += dt * freq * Mathf.PI * 2f;
+            // Amplitude = total bend reached at the tail. Each joint only adds its share (child rotations add up
+            // down the chain; giving every joint the full curve made the tail fold over).
             float amp = Amplitude * (0.5f + Mathf.Clamp01(_speed / 6f));
+            float prev = 0f;
             for (int i = 0; i < _spine.Length; i++)
             {
                 float k = (float)i / (_spine.Length - 1);          // 0 head .. 1 tail
-                float a = amp * Mathf.Pow(k, 1.8f) * Mathf.Sin(_phase - k * 2.4f);
-                _spine[i].localRotation = Quaternion.Euler(a * 0.6f, 0f, 0f);
+                float bend = amp * Mathf.Pow(k, 1.8f) * Mathf.Sin(_phase - k * 2.4f);
+                _spine[i].localRotation = Quaternion.Euler(bend - prev, 0f, 0f);
+                prev = bend;
             }
             if (_fluke != null)
-                _fluke.localRotation = Quaternion.Euler(amp * 1.2f * Mathf.Sin(_phase - 2.8f), 0f, 0f);
-            float fin = Mathf.Sin(_phase * 0.5f) * 10f;
-            if (_finL != null) _finL.localRotation = Quaternion.Euler(0f, 0f, fin - 6f);
-            if (_finR != null) _finR.localRotation = Quaternion.Euler(0f, 0f, -fin + 6f);
+                _fluke.localRotation = Quaternion.Euler(amp * 1.3f * Mathf.Sin(_phase - 2.9f) - prev, 0f, 0f);
+            float fin = Mathf.Sin(_phase * 0.5f) * 5f;
+            if (_finL != null) _finL.localRotation = Quaternion.Euler(0f, 0f, fin - 3f);
+            if (_finR != null) _finR.localRotation = Quaternion.Euler(0f, 0f, -fin + 3f);
         }
     }
 }
