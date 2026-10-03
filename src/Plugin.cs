@@ -57,6 +57,7 @@ namespace ThrowingAxe
             _configStamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
             Rabbits.BindConfig(Config);
+            Sparrows.BindConfig(Config);
             AddLocalization();
             PrefabManager.OnVanillaPrefabsAvailable += CreateItem;
             new Harmony(Guid).PatchAll();
@@ -81,6 +82,7 @@ namespace ThrowingAxe
         {
             var loc = LocalizationManager.Instance.GetLocalization();
             Rabbits.AddTranslations(loc);
+            Sparrows.AddTranslations(loc);
             loc.AddTranslation("English", new Dictionary<string, string>
             {
                 { "item_axethrowing", "Returning Axe" },
@@ -148,6 +150,15 @@ namespace ThrowingAxe
             catch (System.Exception e)
             {
                 Log.LogError("Rabbits failed to register: " + e);
+            }
+
+            try
+            {
+                Sparrows.Register(System.IO.Path.GetDirectoryName(Info.Location));
+            }
+            catch (System.Exception e)
+            {
+                Log.LogError("Sparrows failed to register: " + e);
             }
         }
     }

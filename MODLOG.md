@@ -118,3 +118,27 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
 - Tapis rug_rabbit : CustomPiece clone de rug_deer, marteau, catégorie Mobilier, établi, 3 MeadowRabbitHide,
   échelle 0.6 x 1 x 0.6, teinte claire, icône rendue.
 - Gotcha build : référencer UnityEngine.AssetBundleModule (signatures de CustomPiece).
+
+## v0.5 : bottes en peau de lapin et moineaux
+- Bottes MeadowRabbitBoots : Valheim n'a pas d'emplacement pieds, ce sont donc des jambières (clone
+  d'ArmorLeatherLegs, m_armorMaterial cloné et teinté). Armure 2 (+1/niveau), poids 1, m_movementModifier
+  +0.05. Effet d'équipement SE_RabbitFeet (SE_Stats) : m_jumpModifier y +0.1, m_jumpStaminaUseModifier -0.25,
+  m_fallDamageModifier -0.3. Établi niv. 1, 4 peaux + 2 chutes de cuir (+2 et +1 par niveau).
+- Moineau MeadowSparrow : clone de `Crow` (RandomFlyingBird : vol, atterrissage, s'envole si un joueur est à
+  moins de m_avoidDangerDistance), échelle 0.3, vol bas (2-7 m), virages vifs, m_randomNoise vidé (plus de
+  croassements). DropOnDestroyed/CharacterDrop supprimés, y compris dans m_spawnWhenDestroyed (clone _death
+  si besoin). Santé 1.
+- Couleur : le corbeau est noir, une teinte multiplicative ne marche pas. La texture passe par le GPU
+  (Graphics.Blit + ReadPixels, ce qui marche même sur une texture non lisible), puis sa luminance est
+  remappée sur un dégradé brun moineau.
+- Perchoir : patch prefix de RandomFlyingBird.FindLandingPoint (moineaux seulement). Raycast vers le bas sur
+  24 points autour du point de spawn. Refusés : Heightmap (le sol), pente (normal.y < 0.7), hauteur au-dessus
+  du sol < 0.5 m, eau, joueur proche. Sans perchoir trouvé, le code vanilla continue de voler.
+- Spawn : CreatureManager.SpawnList de Jotunn est interne, donc SpawnSystemList maison ajoutée à chaque
+  SpawnSystem dans un postfix de SpawnSystem.Awake. Prairies, de jour, max 4, groupes 1-3, GroundOffset 6 (+0-3)
+  pour apparaître en l'air.
+- Chants : fal refuse ("User is locked. Reason: Exhausted balance"). Chants synthétisés à la place avec
+  tools/synth_sparrow.py (numpy : glissandos 2.8-7 kHz, trilles, gazouillis FM, écho), 6 WAV 16 bits mono
+  dans BepInEx/plugins/ThrowingAxe/sfx/. Lecture RIFF maison puis AudioClip.Create. AudioSource 3D (3-35 m)
+  sur AudioMan.m_ambientMixer (suit le volume ambiant). Toutes les 3-8 s posé, 8-16 s en vol, rarement la
+  nuit, pitch 0.92-1.1. Spectrogrammes vérifiés visuellement.

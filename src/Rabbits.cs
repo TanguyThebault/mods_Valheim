@@ -56,6 +56,10 @@ namespace ThrowingAxe
                 { "item_rabbitmeat_cooked_desc", "Spit-roasted rabbit. Light, but it keeps you on your feet." },
                 { "piece_rug_rabbit", "Small rabbit-fur rug" },
                 { "piece_rug_rabbit_desc", "Soft under bare feet by the fire." },
+                { "item_rabbitboots", "Rabbit-fur boots" },
+                { "item_rabbitboots_desc", "Light fur boots. Your steps feel quicker, your jumps lighter." },
+                { "se_rabbitfeet", "Rabbit feet" },
+                { "se_rabbitfeet_tooltip", "Jump +10%, jump stamina -25%, fall damage -30%" },
             });
             loc.AddTranslation("French", new Dictionary<string, string>
             {
@@ -68,6 +72,10 @@ namespace ThrowingAxe
                 { "item_rabbitmeat_cooked_desc", "Du lapin rôti à la broche. Léger, mais il donne des jambes." },
                 { "piece_rug_rabbit", "Petit tapis en peau de lapin" },
                 { "piece_rug_rabbit_desc", "Tout doux sous les pieds, au coin du feu." },
+                { "item_rabbitboots", "Bottes en peau de lapin" },
+                { "item_rabbitboots_desc", "De légères bottes fourrées. Le pas est plus vif, le saut plus léger." },
+                { "se_rabbitfeet", "Pattes de lapin" },
+                { "se_rabbitfeet_tooltip", "Saut +10 %, endurance de saut -25 %, dégâts de chute -30 %" },
             });
         }
 
@@ -82,6 +90,7 @@ namespace ThrowingAxe
             RegisterItems();
             RegisterCreature();
             RegisterRug();
+            RegisterBoots();
         }
 
         // ---------------------------------------------------------------- items
@@ -182,6 +191,58 @@ namespace ThrowingAxe
                 Plugin.Log.LogWarning("Rug icon render failed: " + e.Message);
             }
             PieceManager.Instance.AddPiece(rug);
+        }
+
+        // --------------------------------------------------------------- boots
+
+        public const string BootsPrefab = "MeadowRabbitBoots";
+
+        /// <summary>
+        /// Valheim has no feet slot, so the boots are leg armour (a re-tinted copy of the leather trousers),
+        /// with rabbit agility: +5% move speed and an equip effect for jumps and falls.
+        /// </summary>
+        private static void RegisterBoots()
+        {
+            var boots = new CustomItem(BootsPrefab, "ArmorLeatherLegs", new ItemConfig
+            {
+                Name = "$item_rabbitboots",
+                Description = "$item_rabbitboots_desc",
+                CraftingStation = CraftingStations.Workbench,
+                MinStationLevel = 1,
+                Requirements = new[]
+                {
+                    new RequirementConfig(HidePrefab, 4, 2, true),
+                    new RequirementConfig("LeatherScraps", 2, 1, true),
+                },
+            });
+            var fur = new Color(0.85f, 0.75f, 0.62f, 1f);
+            Tint(boots.ItemPrefab, fur);
+            var shared = boots.ItemDrop.m_itemData.m_shared;
+            if (shared.m_armorMaterial != null)
+            {
+                var worn = new Material(shared.m_armorMaterial) { name = shared.m_armorMaterial.name + "_rabbit" };
+                if (worn.HasProperty("_Color"))
+                    worn.SetColor("_Color", worn.GetColor("_Color") * fur);
+                shared.m_armorMaterial = worn;
+            }
+            shared.m_armor = 2f;
+            shared.m_armorPerLevel = 1f;
+            shared.m_weight = 1f;
+            shared.m_movementModifier = 0.05f;
+            SetIcon(boots);
+
+            var se = ScriptableObject.CreateInstance<SE_Stats>();
+            se.name = "SE_RabbitFeet";
+            se.m_name = "$se_rabbitfeet";
+            se.m_tooltip = "$se_rabbitfeet_tooltip";
+            se.m_icon = shared.m_icons != null && shared.m_icons.Length > 0 ? shared.m_icons[0] : null;
+            se.m_jumpModifier = new Vector3(0f, 0.1f, 0f);
+            se.m_jumpStaminaUseModifier = -0.25f;
+            se.m_fallDamageModifier = -0.3f;
+            ItemManager.Instance.AddStatusEffect(new CustomStatusEffect(se, false));
+            shared.m_equipStatusEffect = se;
+
+            ItemManager.Instance.AddItem(boots);
         }
 
         private static void RegisterCreature()
