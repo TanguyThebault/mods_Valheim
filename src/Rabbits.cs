@@ -440,7 +440,7 @@ namespace ThrowingAxe
 
         private static void PostfixImpl(AnimalAI __instance, bool alert)
         {
-            if (alert || __instance.GetComponent<RabbitTag>() == null)
+            if (alert || (__instance.GetComponent<RabbitTag>() == null && __instance.GetComponent<MouseTag>() == null))
                 return;
             Vector3 here = __instance.transform.position;
             s_spawnPoint(__instance) = here;

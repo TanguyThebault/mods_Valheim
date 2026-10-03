@@ -228,3 +228,32 @@ dans la Forêt Noire.
   gardées, perchoir uniquement, Forêt Noire, de jour, max 3.
 - Au premier SpawnSystem.Awake, le log liste les spawners vanilla de la Forêt Noire, pour vérifier la liste
   des créatures.
+
+## v0.9 : chouette, mulots, corbeaux audibles, moineaux au repos la nuit
+Retours : pas de souci de performance (cause extérieure, le profileur reste en place) ; corbeaux inaudibles ;
+moineaux qui doivent se percher en hauteur la nuit et se taire ; une chouette cachée en hauteur le jour,
+active la nuit, qui chasse lapins et mulots et hulule ; des mulots minuscules qui donnent rarement de la
+viande. fal à utiliser avec parcimonie : tout a été synthétisé, aucun crédit fal utilisé.
+- Sons (tools/synth_birds.py) : croassements (fondamentale de 480-620 Hz descendante, 17 harmoniques,
+  formants ; le premier essai trop rugueux a été corrigé après lecture du spectrogramme), hululements de
+  hulotte (quasi sinus de 340-410 Hz, motif long « hou… hou-hou-hououou » avec trémolo alterné avec un motif
+  court), couinements de mulot (4.5-6.5 kHz).
+- BirdVoice (remplace SparrowSong) : voix par espèce (clips, intervalle, volume, portée, heures actives) ;
+  m_randomNoise vanilla vidé. Corbeau : de jour, volume 0.8, portée 60 m. Chouette : de nuit, portée 70 m.
+  Moineau : de jour seulement (avant, il chantait 15 % du temps la nuit).
+- Repos (BirdBehaviour, ex-BirdClearance) : PerchBird.RestAtNight (moineau, corbeau) / RestByDay (chouette).
+  Au repos, m_landDuration vaut 1e6 (seul un danger fait décoller) ; en vol, RandomizeWaypoint(true) toutes
+  les 2 s. BirdPerch au repos : 40 tirages, perchoir le plus haut, au moins 2.5 m au-dessus du sol.
+  m_noRandomFlightAtNight false (on gère nous-mêmes).
+- Remodelage (maillages du corbeau lisibles) : bec et queue raccourcis, corps et tête élargis, dans les repères
+  posé (haut y, bec -z) et en vol (haut z, bec +y, les ailes déployées ne sont pas élargies). Chouette : bec
+  0.3, queue 0.45, largeur 1.3, tête 1.25. Moineau : bec 0.55, queue 0.85, largeur 1.1.
+- Chouette MeadowOwl : masque fauve (disque facial pâle, poitrine striée, ailes et queue barrées, moucheture).
+  OwlHunter : de nuit, toutes les 3 s, cherche le lapin ou le mulot le plus proche à moins de 40 m, plonge
+  (waypoint au sol suivi en continu, l'altitude minimale est levée dans les 4 derniers mètres), frappe à
+  1.2 m (25 perforants, réglable), puis redécolle avec un délai de 20-40 s. Les proies ne fuient que les
+  Character, donc la chouette les surprend. Prairies et Forêt Noire, max 1.
+- Mulot MeadowMouse : clone de Hare à l'échelle 0.22, os mis à l'échelle (Ear.l/r 0.55/0.45/0.55,
+  Tail 0.5/3/0.5, Head 1.15), y compris sur le ragdoll cloné. Masque brun, ventre pâle, oreilles et queue
+  rosées. Santé 3, course 6.5, fuite en zigzag (0.4 s, 80°), viande 15 % (MeadowMouseMeat, cuite 12 s :
+  8 PV, 10 endurance, 600 s). Couinements sur coup, mort et alerte. Patch SettleAfterFlee étendu aux mulots.
