@@ -142,3 +142,11 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
   dans BepInEx/plugins/ThrowingAxe/sfx/. Lecture RIFF maison puis AudioClip.Create. AudioSource 3D (3-35 m)
   sur AudioMan.m_ambientMixer (suit le volume ambiant). Toutes les 3-8 s posé, 8-16 s en vol, rarement la
   nuit, pitch 0.92-1.1. Spectrogrammes vérifiés visuellement.
+
+## Test 5 (v0.5) -> v0.5.1
+- Retours : chants trop fréquents et un peu trop forts ; bottes trop puissantes (pas d'armure, seulement la
+  vitesse et un peu de saut).
+- Chants : intervalle moyen 11 s posé (le double de l'ancien 5.5 s), x2.5 en vol (tirage entre 0.55 et 1.45 fois
+  la moyenne), volume 0.7 -> 0.5. Réglables à chaud : [Sparrow] SongInterval et SongVolume.
+- Bottes : armure 0, m_maxQuality 1 (rien à améliorer), vitesse +5 % (m_movementModifier), SE réduit à
+  saut +8 %. Plus de réduction d'endurance de saut ni de dégâts de chute.

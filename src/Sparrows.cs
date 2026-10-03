@@ -23,11 +23,16 @@ namespace ThrowingAxe
         internal static readonly List<AudioClip> Songs = new List<AudioClip>();
         private static ConfigEntry<float> s_scale;
         private static ConfigEntry<int> s_maxSpawned;
+        internal static ConfigEntry<float> SongVolume;
+        internal static ConfigEntry<float> SongInterval;
 
         public static void BindConfig(ConfigFile config)
         {
             s_scale = config.Bind("Sparrow", "Scale", 0.3f, "Size relative to the vanilla crow (restart).");
             s_maxSpawned = config.Bind("Sparrow", "MaxSpawned", 4, "Max sparrows around a player (restart).");
+            SongVolume = config.Bind("Sparrow", "SongVolume", 0.5f, "Song volume, 0-1 (live).");
+            SongInterval = config.Bind("Sparrow", "SongInterval", 11f,
+                "Average seconds between two songs of a perched sparrow; about 2.5x longer in flight (live).");
         }
 
         public static void AddTranslations(CustomLocalization loc)
@@ -311,7 +316,7 @@ namespace ThrowingAxe
             _source.minDistance = 3f;
             _source.maxDistance = 35f;
             _source.dopplerLevel = 0f;
-            _source.volume = 0.7f;
+            _source.volume = Sparrows.SongVolume.Value;
             _timer = Random.Range(1f, 8f);
         }
 
@@ -328,12 +333,14 @@ namespace ThrowingAxe
                 return;
             bool landed = _nview != null && _nview.IsValid() && _nview.GetZDO().GetBool(ZDOVars.s_landed);
             // Sings mostly when perched, now and then in flight, rarely at night.
-            _timer = landed ? Random.Range(3f, 8f) : Random.Range(8f, 16f);
+            float mean = Sparrows.SongInterval.Value * (landed ? 1f : 2.5f);
+            _timer = Random.Range(mean * 0.55f, mean * 1.45f);
             if (!EnvMan.IsDaylight() && Random.value > 0.15f)
                 return;
             if (Sparrows.Songs.Count == 0 || _source.isPlaying)
                 return;
             _source.pitch = Random.Range(0.92f, 1.1f);
+            _source.volume = Sparrows.SongVolume.Value;
             _source.PlayOneShot(Sparrows.Songs[Random.Range(0, Sparrows.Songs.Count)]);
         }
     }
