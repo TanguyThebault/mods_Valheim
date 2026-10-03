@@ -36,6 +36,7 @@ namespace ThrowingAxe
         internal static ConfigEntry<float> SongInterval;
         internal static ConfigEntry<float> MinClearance;
         internal static ConfigEntry<float> OwlStrikeDamage;
+        private static ConfigEntry<bool> s_owlFlip;
 
         public static void BindConfig(ConfigFile config)
         {
@@ -48,6 +49,8 @@ namespace ThrowingAxe
             s_crowVolume = config.Bind("Crow", "Volume", 0.8f, "Croak volume, 0-1 (live).");
             s_owlMax = config.Bind("Owl", "MaxSpawned", 1, "Max owls around a player (restart).");
             s_owlVolume = config.Bind("Owl", "Volume", 0.7f, "Hoot volume, 0-1 (live).");
+            s_owlFlip = config.Bind("Owl", "FlipFlyingModel", false,
+                "Turn the flying owl model around if it flies backwards (restart).");
             OwlStrikeDamage = config.Bind("Owl", "StrikeDamage", 25f, "Damage of an owl's strike on its prey (live).");
             MinClearance = config.Bind("Birds", "MinClearance", 2f, "Minimum flight height above the ground, m (live).");
         }
@@ -148,11 +151,43 @@ namespace ThrowingAxe
                 d.m_health = 15f;
                 d.m_destroyedEffect = OwnFeathers(d.m_destroyedEffect, OwlPrefab, new Color(0.50f, 0.36f, 0.22f));
             }
-            Reshape(go, beak: 0.3f, tail: 0.45f, width: 1.3f, head: 1.25f);
-            Look.Paint(go, Look.Mask("owl"), new Color(0.50f, 0.36f, 0.22f));
+            if (!UseOwlModels(go))
+            {
+                // fallback: reshaped and painted crow
+                Reshape(go, beak: 0.3f, tail: 0.45f, width: 1.3f, head: 1.25f);
+                Look.Paint(go, Look.Mask("owl"), new Color(0.50f, 0.36f, 0.22f));
+            }
             go.AddComponent<OwlHunter>();
             Finish(go, "$meadow_owl", "owl", restAtNight: false, restByDay: true);
             AddSpawn(go, Heightmap.Biome.Meadows | Heightmap.Biome.BlackForest, s_owlMax.Value, 1, day: true, night: true);
+        }
+
+        /// <summary>Generated owl models (fal Trellis): a static perched owl, and a flying owl skinned to the crow's wings.</summary>
+        private static bool UseOwlModels(GameObject go)
+        {
+            var perched = ModelData.Load("owl_perched");
+            var flying = ModelData.Load("owl_flying");
+            if (perched == null || flying == null)
+                return false;
+            var mfs = go.GetComponentsInChildren<MeshFilter>(true);
+            var smrs = go.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            if (mfs.Length == 0 || smrs.Length == 0)
+                return false;
+            foreach (var mf in mfs)
+            {
+                if (!Models.OwlSitting(mf, perched))
+                    return false;
+                var r = mf.GetComponent<Renderer>();
+                if (r != null)
+                    Models.UseTexture(r, perched.Tex, go.name);
+            }
+            foreach (var smr in smrs)
+            {
+                if (!Models.OwlFlying(smr, flying, s_owlFlip.Value))
+                    return false;
+                Models.UseTexture(smr, flying.Tex, go.name);
+            }
+            return true;
         }
 
         private static void Finish(GameObject go, string hover, string voice, bool restAtNight, bool restByDay)

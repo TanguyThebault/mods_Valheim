@@ -27,7 +27,7 @@ namespace ThrowingAxe
 
         public static void BindConfig(ConfigFile config)
         {
-            s_scale = config.Bind("Mouse", "Scale", 0.22f, "Size relative to the vanilla hare (restart).");
+            s_scale = config.Bind("Mouse", "Scale", 0.44f, "Size relative to the vanilla hare (restart).");
             s_meatChance = config.Bind("Mouse", "MeatChance", 15f, "Chance (%) that a mouse leaves meat (restart).");
             s_maxSpawned = config.Bind("Mouse", "MaxSpawned", 4, "Max mice around a player (restart).");
             s_earScale = config.Bind("Mouse", "EarScale", new Vector3(0.55f, 0.45f, 0.55f), "Scale of the ear bones (restart).");
@@ -129,9 +129,14 @@ namespace ThrowingAxe
             var mouse = new CustomCreature(CreaturePrefab, "Hare", config);
             var go = mouse.Prefab;
             go.transform.localScale *= s_scale.Value;
-            Proportions(go);
             var mask = Look.Mask("mouse");
-            Look.Paint(go, mask, MouseBrown);
+            var model = ModelData.Load("mouse");
+            bool modelled = model != null && UseMouseModel(go, model);
+            if (!modelled)
+            {
+                Proportions(go);
+                Look.Paint(go, mask, MouseBrown);
+            }
 
             var character = go.GetComponent<Character>();
             character.m_health = 3f;
@@ -143,7 +148,10 @@ namespace ThrowingAxe
             Look.OwnRagdolls(character.m_deathEffects, CreaturePrefab, mask, MouseBrown);
             foreach (var ed in character.m_deathEffects.m_effectPrefabs)
                 if (ed?.m_prefab != null && ed.m_prefab.GetComponent<Ragdoll>() != null)
-                    Proportions(ed.m_prefab);
+                {
+                    if (!modelled || !UseMouseModel(ed.m_prefab, model))
+                        Proportions(ed.m_prefab);
+                }
 
             var ai = go.GetComponent<AnimalAI>();
             if (ai != null)
@@ -174,7 +182,22 @@ namespace ThrowingAxe
             Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Hare skeleton), meat " + s_meatChance.Value + "%");
         }
 
-        /// <summary>Mouse proportions on the hare skeleton: small round ears, long tail, slightly bigger head.</summary>
+        /// <summary>The generated mouse model (fal Trellis), skinned to the hare skeleton, with its own texture.</summary>
+        private static bool UseMouseModel(GameObject go, ModelData model)
+        {
+            var smrs = go.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            if (smrs.Length == 0)
+                return false;
+            foreach (var smr in smrs)
+            {
+                if (!Models.MouseOnHare(smr, model))
+                    return false;
+                Models.UseTexture(smr, model.Tex, go.name);
+            }
+            return true;
+        }
+
+        /// <summary>Fallback mouse proportions on the hare skeleton: small round ears, long tail, bigger head.</summary>
         private static void Proportions(GameObject go)
         {
             int found = 0;

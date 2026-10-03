@@ -257,3 +257,35 @@ viande. fal à utiliser avec parcimonie : tout a été synthétisé, aucun créd
   Tail 0.5/3/0.5, Head 1.15), y compris sur le ragdoll cloné. Masque brun, ventre pâle, oreilles et queue
   rosées. Santé 3, course 6.5, fuite en zigzag (0.4 s, 80°), viande 15 % (MeadowMouseMeat, cuite 12 s :
   8 PV, 10 endurance, 600 s). Couinements sur coup, mort et alerte. Patch SettleAfterFlee étendu aux mulots.
+
+## v0.10 : vrais modèles 3D pour la chouette et le mulot (fal, budget minimal)
+Demande : des modèles plus fidèles à une chouette et à un mulot, fal avec parcimonie, mulots deux fois plus
+gros.
+- Crédit fal de nouveau disponible (check_account_status : ready). Modèles légers : fal-ai/flux/schnell
+  (0.003 $/MP, 512 px, soit environ 0.001 $ l'image) et fal-ai/trellis (0.02 $, texture 512,
+  mesh_simplify 0.98). 8 images + 3 modèles 3D, environ 0.07 $ au total. Traçabilité :
+  assets/gen/fal_manifest.jsonl.
+- Concepts : chouette posée (graine 7), en vol (graine 33 ; la graine 11 avait les ailes en V), mulot
+  quadrupède de profil (graine 19 ; le premier essai avait 2 têtes et une posture humaine). Prompt :
+  « low poly stylized 3D game asset, faceted flat-shaded… plain white background ».
+- Trellis : chouette posée 4646 triangles, en vol 2963, mulot 2548, tous avec y en haut et la face vers +z.
+- tools/build_models.py : GLB -> .tam (TAM1, positions, normales, UV, indices), passage en main gauche
+  (x miroir, sens des triangles inversé), texture 512 px. Fichiers dans BepInEx/plugins/ThrowingAxe/models/.
+- Models.cs :
+  - OwlSitting : modèle statique à la place du maillage posé du corbeau (MeshFilter), retourné de 180°
+    (le corbeau regarde vers -z), mis à l'échelle de la hauteur, pieds en bas.
+  - OwlFlying : repère cible tiré du corbeau (axe des ailes par les os l_wing/r_wing, axe du corps par ACP
+    des sommets du corps, tête du côté le plus étroit car la queue s'évase). Repère source tiré du modèle
+    (gauche -x, axe du corps par ACP, tête en haut). Rotation repère vers repère, échelle sur l'envergure.
+    Skinning : ailes sur les os d'aile de leur côté, corps sur les autres os. FlipFlyingModel en secours.
+  - MouseOnHare : repère tiré des pieds (normale du plan des 4 pieds, avant = des pieds arrière vers les
+    pieds avant). Le premier essai, avec haut = pieds -> hanches, cabrait le mulot de 36° parce que le lièvre
+    est voûté ; repéré par la simulation hors jeu. Échelle : base de la queue -> tête du mulot calée sur
+    Tail -> Head du lièvre, pieds au sol. Skinning par région du modèle (queue, oreilles g/d, tête,
+    4 pattes, colonne), 2 os les plus proches par distance au segment, poids en 1/d².
+  - Nos textures remplacent celles du jeu, avec _BumpMap vidé (UV différentes). Même chose sur le ragdoll du
+    mulot. Repli sur l'ancien rendu (remodelage et peinture) si un modèle manque.
+- Vérification hors jeu : squelettes (noms des os, poses de liaison, positions locales des enfants) extraits
+  avec UnityPy, alignement et régions rejoués en Python et rendus en superposition : mulot à plat sur ses
+  4 pattes, chouette alignée sur les os du corbeau.
+- Mulot : échelle 0.22 -> 0.44 (modifiée aussi dans le .cfg).
