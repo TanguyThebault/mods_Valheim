@@ -154,6 +154,13 @@ namespace ThrowingAxe
 
         private void Update()
         {
+            long t = Perf.Begin();
+            try { UpdateImpl(); }
+            finally { Perf.End("ThrowingAxeProjectile.Update", t); }
+        }
+
+        private void UpdateImpl()
+        {
             if (_owner == null || _owner.IsDead())
             {
                 Destroy(gameObject);

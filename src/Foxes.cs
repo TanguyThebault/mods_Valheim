@@ -395,6 +395,13 @@ namespace ThrowingAxe
     {
         private static void Postfix(Character a, Character b, ref bool __result)
         {
+            long t = Perf.Begin();
+            try { PostfixImpl(a, b, ref __result); }
+            finally { Perf.End("FoxEnemies", t); }
+        }
+
+        private static void PostfixImpl(Character a, Character b, ref bool __result)
+        {
             if (a == null || b == null)
                 return;
             if (FoxTag.All.Contains(a))
@@ -408,6 +415,13 @@ namespace ThrowingAxe
     internal static class FoxProvoked
     {
         private static void Prefix(MonsterAI __instance, Character attacker)
+        {
+            long t = Perf.Begin();
+            try { PrefixImpl(__instance, attacker); }
+            finally { Perf.End("FoxProvoked", t); }
+        }
+
+        private static void PrefixImpl(MonsterAI __instance, Character attacker)
         {
             var c = __instance.GetComponent<Character>();
             if (c != null && FoxTag.All.Contains(c))
@@ -423,6 +437,13 @@ namespace ThrowingAxe
         private static readonly object[] s_args = new object[2];
 
         private static void Postfix(MonsterAI __instance, float dt, bool __result)
+        {
+            long t = Perf.Begin();
+            try { PostfixImpl(__instance, dt, __result); }
+            finally { Perf.End("FoxKeepAway", t); }
+        }
+
+        private static void PostfixImpl(MonsterAI __instance, float dt, bool __result)
         {
             if (!__result)
                 return;

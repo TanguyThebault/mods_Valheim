@@ -220,6 +220,13 @@ namespace ThrowingAxe
 
         private void Update()
         {
+            long t = Perf.Begin();
+            try { UpdateImpl(); }
+            finally { Perf.End("SparrowSong.Update", t); }
+        }
+
+        private void UpdateImpl()
+        {
             _timer -= Time.deltaTime;
             if (_timer > 0f)
                 return;
@@ -249,6 +256,13 @@ namespace ThrowingAxe
         private static int s_mask;
 
         private static bool Prefix(RandomFlyingBird __instance, ref Vector3 waypoint, ref bool __result)
+        {
+            long t = Perf.Begin();
+            try { return PrefixImpl(__instance, ref waypoint, ref __result); }
+            finally { Perf.End("BirdPerch", t); }
+        }
+
+        private static bool PrefixImpl(RandomFlyingBird __instance, ref Vector3 waypoint, ref bool __result)
         {
             if (__instance.GetComponent<PerchBird>() == null)
                 return true;
@@ -299,6 +313,13 @@ namespace ThrowingAxe
 
         private static void Postfix(RandomFlyingBird __instance, float dt)
         {
+            long t = Perf.Begin();
+            try { PostfixImpl(__instance, dt); }
+            finally { Perf.End("BirdClearance", t); }
+        }
+
+        private static void PostfixImpl(RandomFlyingBird __instance, float dt)
+        {
             if (__instance.GetComponent<PerchBird>() == null)
                 return;
             var nview = s_nview(__instance);
@@ -341,6 +362,13 @@ namespace ThrowingAxe
         }
 
         private static void Postfix(SpawnSystem __instance)
+        {
+            long t = Perf.Begin();
+            try { PostfixImpl(__instance); }
+            finally { Perf.End("SpawnListPatch", t); }
+        }
+
+        private static void PostfixImpl(SpawnSystem __instance)
         {
             if (List != null && !__instance.m_spawnLists.Contains(List))
                 __instance.m_spawnLists.Add(List);

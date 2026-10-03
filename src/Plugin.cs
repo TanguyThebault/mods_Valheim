@@ -31,6 +31,7 @@ namespace ThrowingAxe
         internal static ConfigEntry<Vector3> VisualTilt;
         internal static ConfigEntry<bool> Craftable;
         internal static ConfigEntry<float> CryptChestChance;
+        internal static ConfigEntry<bool> PerfLog;
 
         private System.DateTime _configStamp;
         private float _nextConfigCheck;
@@ -56,6 +57,7 @@ namespace ThrowingAxe
                 "Extra rotation (degrees) applied to the flat-lying axe model, if it doesn't look right.");
             _configStamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
+            PerfLog = Config.Bind("Debug", "PerfLog", true, "Log frame rate and this mod's hook timings every 10 s (live).");
             Look.PluginDir = System.IO.Path.GetDirectoryName(Info.Location);
             Rabbits.BindConfig(Config);
             Birds.BindConfig(Config);
@@ -68,6 +70,14 @@ namespace ThrowingAxe
 
         // Edits to the .cfg apply while the game runs (checked once a second).
         private void Update()
+        {
+            Perf.Frame();
+            long t = Perf.Begin();
+            try { UpdateImpl(); }
+            finally { Perf.End("Plugin.Update (config check)", t); }
+        }
+
+        private void UpdateImpl()
         {
             if (Time.unscaledTime < _nextConfigCheck)
                 return;
@@ -181,6 +191,13 @@ namespace ThrowingAxe
         // The axe is not in the hand while it flies: no melee, no second throw.
         private static bool Prefix(Humanoid __instance, ref bool __result)
         {
+            long t = Perf.Begin();
+            try { return PrefixImpl(__instance, ref __result); }
+            finally { Perf.End("BlockAttackWhileThrown", t); }
+        }
+
+        private static bool PrefixImpl(Humanoid __instance, ref bool __result)
+        {
             if (!ThrowingAxeProjectile.IsInFlight(__instance))
                 return true;
             var weapon = __instance.GetCurrentWeapon();
@@ -201,6 +218,13 @@ namespace ThrowingAxe
         public const string ChestPrefab = "TreasureChest_sunkencrypt";
 
         private static void Postfix(Container __instance)
+        {
+            long t = Perf.Begin();
+            try { PostfixImpl(__instance); }
+            finally { Perf.End("SunkenCryptLoot", t); }
+        }
+
+        private static void PostfixImpl(Container __instance)
         {
             if (__instance.gameObject.name.Replace("(Clone)", "").Trim() != ChestPrefab)
                 return;

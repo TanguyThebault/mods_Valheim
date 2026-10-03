@@ -433,6 +433,13 @@ namespace ThrowingAxe
 
         private static void Postfix(AnimalAI __instance, bool alert)
         {
+            long t = Perf.Begin();
+            try { PostfixImpl(__instance, alert); }
+            finally { Perf.End("SettleAfterFlee", t); }
+        }
+
+        private static void PostfixImpl(AnimalAI __instance, bool alert)
+        {
             if (alert || __instance.GetComponent<RabbitTag>() == null)
                 return;
             Vector3 here = __instance.transform.position;
