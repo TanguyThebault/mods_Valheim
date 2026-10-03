@@ -7,9 +7,14 @@ namespace ThrowingAxe
     /// <summary>
     /// Spawned by the vanilla Attack pipeline (Attack.FireProjectileBurst -> IProjectile.Setup), so the
     /// HitData already carries the axe's damage, skill, quality and status-effect modifiers.
-    /// Outbound: flies straight along the aim, passes through creatures (one hit each) and turns back at
-    /// MaxRange or at the first solid obstacle (which it hits). Return: homes on the right hand, hitting
-    /// creatures again, ignoring obstacles so it can't get stuck.
+    ///
+    /// Flight is a horizontal ellipse, like a boomerang:
+    /// - At launch the range R is MaxRange, or the distance to the first solid obstacle on the aim line.
+    /// - Outbound: half an ellipse from the throw point to start + aim * R, bulging to one side.
+    /// - Return: the other half, from wherever it turned to the (moving) right hand, bulging to the other side.
+    /// - Creatures are passed through (one hit each per leg). A solid obstacle met on the way out is hit and
+    ///   the axe turns back from there. The return ignores obstacles so it can't get stuck.
+    /// The visual lies flat (blade plane horizontal) and spins around the world vertical.
     /// Local-only visuals: no ZNetView. Damage goes through IDestructible.Damage, which the game routes to
     /// the target's owner.
     /// </summary>
@@ -28,14 +33,24 @@ namespace ThrowingAxe
         private VisEquipment _ownerVis;
         private HitData _hitData;
         private ItemDrop.ItemData _item;
-        private Vector3 _dir;
-        private float _travelled;
         private float _age;
         private float _spin;
-        private bool _returning;
         private readonly HashSet<IDestructible> _hitThisLeg = new HashSet<IDestructible>();
         private Transform _visual;
         private GameObject _handItem;
+
+        // Path
+        private Vector3 _start;
+        private Vector3 _dir;
+        private Vector3 _side;      // horizontal, perpendicular to the aim; outbound bulges this way
+        private float _range;
+        private float _halfWidth;
+        private bool _returning;
+        private float _u;           // progress of the current leg, 0..1
+        private Vector3 _turnPoint;
+        private float _returnHalfWidth;
+        private RaycastHit _endObstacle;
+        private bool _hasEndObstacle;
 
         public static bool IsInFlight(Character c)
         {
@@ -53,17 +68,28 @@ namespace ThrowingAxe
             _owner = owner;
             _hitData = hitData;
             _item = item;
+            _start = transform.position;
             _dir = velocity.sqrMagnitude > 0.001f ? velocity.normalized : owner.transform.forward;
-            transform.rotation = Quaternion.LookRotation(_dir);
-            s_inFlight[owner] = this;
+            Vector3 flat = Vector3.ProjectOnPlane(_dir, Vector3.up);
+            if (flat.sqrMagnitude < 0.001f)
+                flat = owner.transform.forward;
+            _side = Vector3.Cross(Vector3.up, flat.normalized).normalized * Mathf.Sign(Plugin.CurveSide.Value);
 
+            _range = Plugin.MaxRange.Value;
+            _hasEndObstacle = FirstObstacle(_start, _dir, _range, out _endObstacle);
+            if (_hasEndObstacle)
+                _range = Mathf.Max(1f, _endObstacle.distance);
+            _halfWidth = _range * Plugin.CurveWidth.Value;
+
+            s_inFlight[owner] = this;
             _ownerVis = owner.GetComponent<VisEquipment>();
             _handItem = _ownerVis != null ? s_rightItemInstance(_ownerVis) : null;
             BuildVisual();
             if (_handItem != null)
                 _handItem.SetActive(false);
 
-            Plugin.Log.LogDebug("Throw from " + transform.position + " dir " + _dir);
+            Plugin.Log.LogDebug("Throw from " + _start + " range " + _range.ToString("F1") + " m" +
+                                (_hasEndObstacle ? " (obstacle " + _endObstacle.collider.name + ")" : ""));
         }
 
         public string GetTooltipString(int itemQuality)
@@ -75,19 +101,54 @@ namespace ThrowingAxe
         {
             if (_handItem == null)
                 return;
-            var copy = Instantiate(_handItem, transform);
+
+            var pivot = new GameObject("spin").transform;
+            pivot.SetParent(transform, false);
+            var copy = Instantiate(_handItem, pivot);
             copy.SetActive(true);
             copy.transform.localPosition = Vector3.zero;
-            // Lay the axe flat-ish across the flight direction; the spin axis is the local right.
-            copy.transform.localRotation = Quaternion.Euler(0f, 90f, 90f);
+            copy.transform.localRotation = Quaternion.identity;
+            copy.transform.localScale = _handItem.transform.lossyScale;
             foreach (var c in copy.GetComponentsInChildren<Collider>(true)) DestroyImmediate(c);
             foreach (var rb in copy.GetComponentsInChildren<Rigidbody>(true)) DestroyImmediate(rb);
             foreach (var mb in copy.GetComponentsInChildren<MonoBehaviour>(true)) DestroyImmediate(mb);
 
-            var pivot = new GameObject("spin").transform;
-            pivot.SetParent(transform, false);
-            copy.transform.SetParent(pivot, false);
+            // Lay it flat: the thinnest axis of the model (blade thickness) points up, and spin around the
+            // model's centre rather than the grip.
+            if (LocalBounds(copy.transform, pivot, out var b))
+            {
+                Vector3 e = b.extents;
+                Vector3 thin = e.x <= e.y && e.x <= e.z ? Vector3.right : (e.y <= e.z ? Vector3.up : Vector3.forward);
+                Quaternion rot = Quaternion.FromToRotation(thin, Vector3.up) * Quaternion.Euler(Plugin.VisualTilt.Value);
+                copy.transform.localRotation = rot;
+                copy.transform.localPosition = -(rot * b.center);
+                Plugin.Log.LogDebug("Visual extents " + e + ", thin axis " + thin);
+            }
             _visual = pivot;
+        }
+
+        private static bool LocalBounds(Transform root, Transform space, out Bounds bounds)
+        {
+            bounds = default;
+            bool any = false;
+            foreach (var r in root.GetComponentsInChildren<Renderer>(true))
+            {
+                Mesh mesh = null;
+                if (r is SkinnedMeshRenderer smr) mesh = smr.sharedMesh;
+                else if (r is MeshRenderer) mesh = r.GetComponent<MeshFilter>()?.sharedMesh;
+                if (mesh == null)
+                    continue;
+                Bounds mb = mesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    Vector3 corner = mb.center + Vector3.Scale(mb.extents,
+                        new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                    Vector3 p = space.InverseTransformPoint(r.transform.TransformPoint(corner));
+                    if (!any) { bounds = new Bounds(p, Vector3.zero); any = true; }
+                    else bounds.Encapsulate(p);
+                }
+            }
+            return any;
         }
 
         private void Update()
@@ -102,54 +163,112 @@ namespace ThrowingAxe
             _age += dt;
             if (_age > MaxFlightTime)
             {
-                Catch();
+                Destroy(gameObject);
                 return;
             }
 
-            _spin += Plugin.SpinSpeed.Value * dt;
-            if (_visual != null)
-                _visual.localRotation = Quaternion.AngleAxis(_spin, Vector3.right);
-
             Vector3 pos = transform.position;
+            float speed = _returning ? Plugin.ReturnSpeed.Value : Plugin.OutSpeed.Value;
+            float newU = Advance(_u, speed * dt);
+            Vector3 next = PathPoint(newU);
+            Vector3 delta = next - pos;
+            float len = delta.magnitude;
+
+            if (len > 0.0001f)
+            {
+                Vector3 dir = delta / len;
+                if (Sweep(pos, dir, len, out float stopAt))
+                {
+                    // Unexpected obstacle on the curve: turn back from the contact point.
+                    transform.position = pos + dir * stopAt;
+                    TurnBack();
+                    return;
+                }
+                Vector3 flat = Vector3.ProjectOnPlane(dir, Vector3.up);
+                if (flat.sqrMagnitude > 0.0001f)
+                    transform.rotation = Quaternion.LookRotation(flat, Vector3.up);
+            }
+            transform.position = next;
+            _u = newU;
+
+            _spin += Plugin.SpinSpeed.Value * dt * Mathf.Sign(Plugin.CurveSide.Value);
+            if (_visual != null)
+                _visual.rotation = Quaternion.AngleAxis(_spin, Vector3.up);
+
+            if (!_returning && _u >= 1f)
+            {
+                if (_hasEndObstacle)
+                    HitObstacle(_endObstacle.collider, transform.position, _dir);
+                TurnBack();
+            }
+            else if (_returning && (_u >= 1f || Vector3.Distance(transform.position, HandPosition()) <= CatchDistance))
+            {
+                Destroy(gameObject); // caught
+            }
+        }
+
+        private Vector3 PathPoint(float u)
+        {
+            float a = Mathf.PI * Mathf.Clamp01(u);
+            float along = (1f - Mathf.Cos(a)) * 0.5f;   // 0 -> 1, slow at the ends like an ellipse
+            float bulge = Mathf.Sin(a);
             if (!_returning)
+                return _start + _dir * (_range * along) + _side * (_halfWidth * bulge);
+            return Vector3.Lerp(_turnPoint, HandPosition(), along) - _side * (_returnHalfWidth * bulge);
+        }
+
+        /// <summary>Moves u forward so the point travels about `distance` metres along the curve.</summary>
+        private float Advance(float u, float distance)
+        {
+            const float eps = 0.002f;
+            float d = (PathPoint(Mathf.Min(1f, u + eps)) - PathPoint(u)).magnitude / eps; // metres per unit u
+            return Mathf.Min(1f, u + distance / Mathf.Max(d, 0.5f));
+        }
+
+        private void TurnBack()
+        {
+            _turnPoint = transform.position;
+            float back = Vector3.Distance(_turnPoint, HandPosition());
+            _returnHalfWidth = back * Plugin.CurveWidth.Value;
+            _returning = true;
+            _u = 0f;
+            _hitThisLeg.Clear();
+        }
+
+        private bool FirstObstacle(Vector3 from, Vector3 dir, float range, out RaycastHit first)
+        {
+            first = default;
+            var hits = Physics.SphereCastAll(from, Plugin.HitRadius.Value, dir, range, s_mask,
+                QueryTriggerInteraction.Collide);
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            foreach (var h in hits)
             {
-                float step = Mathf.Min(Plugin.OutSpeed.Value * dt, Plugin.MaxRange.Value - _travelled);
-                if (Sweep(pos, _dir, step, out float stopAt))
+                if (IsObstacle(h.collider))
                 {
-                    transform.position = pos + _dir * stopAt;
-                    TurnBack();
-                    return;
+                    first = h;
+                    return true;
                 }
-                transform.position = pos + _dir * step;
-                _travelled += step;
-                if (_travelled >= Plugin.MaxRange.Value - 0.01f)
-                    TurnBack();
             }
-            else
-            {
-                Vector3 hand = HandPosition();
-                Vector3 to = hand - pos;
-                float dist = to.magnitude;
-                float step = Plugin.ReturnSpeed.Value * dt;
-                if (dist <= CatchDistance + step)
-                {
-                    Catch();
-                    return;
-                }
-                Vector3 dir = to / dist;
-                Sweep(pos, dir, step, out _);
-                transform.position = pos + dir * step;
-                transform.rotation = Quaternion.LookRotation(dir);
-            }
+            return false;
+        }
+
+        private bool IsObstacle(Collider col)
+        {
+            var go = Projectile.FindHitObject(col);
+            if (go == null || go.transform.root == _owner.transform.root)
+                return false;
+            var destr = go.GetComponent<IDestructible>();
+            if (destr is Character)
+                return false;
+            if (col.isTrigger && destr == null)
+                return false; // trigger zones (wards, areas) aren't obstacles
+            return true;
         }
 
         /// <summary>Hits creatures along the segment; returns true at the first solid obstacle (outbound only).</summary>
         private bool Sweep(Vector3 from, Vector3 dir, float length, out float stopAt)
         {
             stopAt = length;
-            if (length <= 0f)
-                return false;
-
             var hits = Physics.SphereCastAll(from, Plugin.HitRadius.Value, dir, length, s_mask,
                 QueryTriggerInteraction.Collide);
             System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
@@ -159,31 +278,37 @@ namespace ThrowingAxe
                 var go = Projectile.FindHitObject(h.collider);
                 if (go == null || go.transform.root == _owner.transform.root)
                     continue;
-
-                var destr = go.GetComponent<IDestructible>();
                 Vector3 point = h.distance <= 0f && h.point == Vector3.zero ? from : h.point;
 
-                if (destr is Character character)
+                if (go.GetComponent<IDestructible>() is Character character)
                 {
                     if (CanHit(character))
-                        DoHit(destr, h.collider, point, dir, character);
+                        DoHit(character, h.collider, point, dir, character);
                     continue; // creatures don't stop the axe
                 }
+                if (_returning || !IsObstacle(h.collider))
+                    continue;
+                // The planned end obstacle is handled at the turn point.
+                if (_hasEndObstacle && h.collider == _endObstacle.collider)
+                    continue;
 
-                if (_returning)
-                    continue; // the way back ignores obstacles
-                if (h.collider.isTrigger && destr == null)
-                    continue; // trigger zones (wards, areas) aren't obstacles
-
-                if (destr != null)
-                    DoHit(destr, h.collider, point, dir, null);
-                else
-                    _item.m_shared.m_hitTerrainEffect.Create(point, Quaternion.identity);
+                HitObstacle(h.collider, point, dir);
                 stopAt = Mathf.Max(0f, h.distance - 0.05f);
-                Plugin.Log.LogDebug("Obstacle " + go.name + " at " + (_travelled + stopAt).ToString("F1") + " m");
                 return true;
             }
             return false;
+        }
+
+        private void HitObstacle(Collider col, Vector3 point, Vector3 dir)
+        {
+            var go = Projectile.FindHitObject(col);
+            var destr = go != null ? go.GetComponent<IDestructible>() : null;
+            if (destr != null)
+                DoHit(destr, col, point, dir, null);
+            else
+                _item.m_shared.m_hitTerrainEffect.Create(point, Quaternion.identity);
+            Plugin.Log.LogDebug("Obstacle " + (go != null ? go.name : col.name) + " at " +
+                                Vector3.Distance(_start, point).ToString("F1") + " m");
         }
 
         private bool CanHit(Character c)
@@ -218,22 +343,11 @@ namespace ThrowingAxe
             Plugin.Log.LogDebug("Hit " + ((MonoBehaviour)destr).name + (_returning ? " (return)" : ""));
         }
 
-        private void TurnBack()
-        {
-            _returning = true;
-            _hitThisLeg.Clear();
-        }
-
         private Vector3 HandPosition()
         {
             if (_ownerVis != null && _ownerVis.m_rightHand != null)
                 return _ownerVis.m_rightHand.position;
             return _owner.GetCenterPoint();
-        }
-
-        private void Catch()
-        {
-            Destroy(gameObject);
         }
 
         private void OnDestroy()

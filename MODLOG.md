@@ -42,3 +42,26 @@ Raison : scène de mod établie, Jotunn gère items/recettes/traductions, le jeu
 - [x] Build OK (dotnet 10 SDK)
 - [ ] Installer BepInEx + Jotunn + plugin (demander l'accord)
 - [ ] Vérifier en jeu : log de chargement, spawn de l'item, lancer, portée 20 m, arrêt sur obstacle, retour
+
+## Installé dans le jeu (2026-10-03, accord de Lekinox)
+Fichiers ajoutés à la racine de Valheim : winhttp.dll, doorstop_config.ini, .doorstop_version, doorstop_libs/,
+start_game_bepinex.sh, start_server_bepinex.sh, changelog.txt, BepInEx/ (core, config, plugins/Jotunn,
+plugins/ThrowingAxe). BepInEx.cfg [Logging.Disk] LogLevels += Debug.
+Désactiver : renommer/supprimer winhttp.dll. Désinstaller : supprimer la liste ci-dessus.
+Redéployer le plugin : dotnet build -c Release puis copier bin/Release/ThrowingAxe.dll dans BepInEx/plugins/ThrowingAxe/.
+
+## Test 1 (v0.1, Lekinox en jeu)
+- Fonctionne : lancer, retour, obstacles détectés (log : "Obstacle Terrain at 7,8 m", "Hit Rock_3(Clone)").
+- Console : Paramètres > Gameplay > Activer la console (F5 ne marche pas sans ça).
+- Retours : la hache tourne sur le mauvais axe (doit tourner à plat) ; trajectoire à rendre elliptique.
+- Constat dans le log : la visée du lancer pique un peu vers le bas (dir.y ≈ -0.14), donc le sol peut être
+  touché vers 8-10 m sur terrain plat.
+
+## v0.2
+- Visuel : axe le plus fin du mesh (épaisseur de lame) aligné sur la verticale, centre des bounds au pivot,
+  rotation autour de la verticale du monde. Config [Visual] Tilt pour corriger.
+- Trajectoire : portée fixée au lancer (20 m ou premier obstacle sur la ligne de visée, par sphere-cast).
+  Aller = demi-ellipse vers CurveSide, retour = autre demi-ellipse vers la main (qui bouge). Paramètre u,
+  avancée à vitesse constante en longueur d'arc (dérivée numérique). Obstacle imprévu sur la courbe :
+  demi-tour depuis le point de contact.
+- Config relue à chaud (date du .cfg vérifiée chaque seconde) : CurveWidth, CurveSide, vitesses, etc.

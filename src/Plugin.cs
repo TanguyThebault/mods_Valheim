@@ -26,6 +26,12 @@ namespace ThrowingAxe
         internal static ConfigEntry<float> ReturnSpeed;
         internal static ConfigEntry<float> SpinSpeed;
         internal static ConfigEntry<float> HitRadius;
+        internal static ConfigEntry<float> CurveWidth;
+        internal static ConfigEntry<float> CurveSide;
+        internal static ConfigEntry<Vector3> VisualTilt;
+
+        private System.DateTime _configStamp;
+        private float _nextConfigCheck;
 
         private GameObject _projectileTemplate;
 
@@ -37,11 +43,31 @@ namespace ThrowingAxe
             ReturnSpeed = Config.Bind("Throw", "ReturnSpeed", 32f, "Return speed (m/s).");
             SpinSpeed = Config.Bind("Throw", "SpinSpeed", 1080f, "Spin (degrees/s).");
             HitRadius = Config.Bind("Throw", "HitRadius", 0.4f, "Radius of the sweep that detects hits (m).");
+            CurveWidth = Config.Bind("Throw", "CurveWidth", 0.3f,
+                "Half-width of the elliptical path as a fraction of its length (0 = straight out and back).");
+            CurveSide = Config.Bind("Throw", "CurveSide", 1f, "1 = goes out on the right and comes back on the left, -1 = the opposite.");
+            VisualTilt = Config.Bind("Visual", "Tilt", Vector3.zero,
+                "Extra rotation (degrees) applied to the flat-lying axe model, if it doesn't look right.");
+            _configStamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
             AddLocalization();
             PrefabManager.OnVanillaPrefabsAvailable += CreateItem;
             new Harmony(Guid).PatchAll();
             Log.LogInfo("Throwing Axe " + Version + " loaded");
+        }
+
+        // Edits to the .cfg apply while the game runs (checked once a second).
+        private void Update()
+        {
+            if (Time.unscaledTime < _nextConfigCheck)
+                return;
+            _nextConfigCheck = Time.unscaledTime + 1f;
+            var stamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
+            if (stamp == _configStamp)
+                return;
+            _configStamp = stamp;
+            Config.Reload();
+            Log.LogInfo("Config reloaded");
         }
 
         private void AddLocalization()
