@@ -1,0 +1,288 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using BepInEx.Configuration;
+using Jotunn.Configs;
+using Jotunn.Entities;
+using Jotunn.Managers;
+using UnityEngine;
+
+namespace ThrowingAxe
+{
+    /// <summary>
+    /// Meadows rabbits: a re-skinned clone of the Mistlands Hare (Iron Gate's own low-poly model and hop
+    /// animations), with skittish AnimalAI tuning (zig-zag fleeing), and their own hide, raw and cooked meat.
+    /// </summary>
+    internal static class Rabbits
+    {
+        public const string CreaturePrefab = "Rabbit";
+        public const string HidePrefab = "RabbitHide";
+        public const string MeatPrefab = "RabbitMeat";
+        public const string CookedPrefab = "RabbitMeatCooked";
+
+        private static ConfigEntry<Color> s_furTint;
+        private static ConfigEntry<float> s_scale;
+        private static ConfigEntry<float> s_speedFactor;
+        private static ConfigEntry<float> s_spawnChance;
+        private static ConfigEntry<int> s_maxSpawned;
+
+        public static void BindConfig(ConfigFile config)
+        {
+            s_furTint = config.Bind("Rabbit", "FurTint", new Color(0.62f, 0.47f, 0.33f, 1f),
+                "Colour multiplied into the hare's materials (restart to apply).");
+            s_scale = config.Bind("Rabbit", "Scale", 0.85f, "Size relative to the vanilla hare (restart).");
+            s_speedFactor = config.Bind("Rabbit", "SpeedFactor", 1.2f, "Run speed relative to the vanilla hare (restart).");
+            s_spawnChance = config.Bind("Rabbit", "SpawnChance", 40f, "Spawn chance per spawn check, % (restart).");
+            s_maxSpawned = config.Bind("Rabbit", "MaxSpawned", 3, "Max rabbits around a player (restart).");
+        }
+
+        public static void AddTranslations(CustomLocalization loc)
+        {
+            loc.AddTranslation("English", new Dictionary<string, string>
+            {
+                { "enemy_rabbit", "Rabbit" },
+                { "item_rabbithide", "Rabbit hide" },
+                { "item_rabbithide_desc", "Soft, light fur. Quick hands caught it; quicker legs nearly got away." },
+                { "item_rabbitmeat", "Rabbit meat" },
+                { "item_rabbitmeat_desc", "Lean meat from a meadow rabbit. Better cooked." },
+                { "item_rabbitmeat_cooked", "Cooked rabbit" },
+                { "item_rabbitmeat_cooked_desc", "Spit-roasted rabbit. Light, but it keeps you on your feet." },
+            });
+            loc.AddTranslation("French", new Dictionary<string, string>
+            {
+                { "enemy_rabbit", "Lapin" },
+                { "item_rabbithide", "Peau de lapin" },
+                { "item_rabbithide_desc", "Une fourrure douce et légère. Il a fallu des mains rapides, et des jambes plus rapides encore." },
+                { "item_rabbitmeat", "Viande de lapin" },
+                { "item_rabbitmeat_desc", "Une viande maigre de lapin des prairies. Meilleure cuite." },
+                { "item_rabbitmeat_cooked", "Lapin rôti" },
+                { "item_rabbitmeat_cooked_desc", "Du lapin rôti à la broche. Léger, mais il donne des jambes." },
+            });
+        }
+
+        public static void Register()
+        {
+            Dump("Hare");
+            Dump("DeerHide");
+            Dump("DeerMeat");
+            Dump("CookedDeerMeat");
+
+            RegisterItems();
+            RegisterCreature();
+        }
+
+        // ---------------------------------------------------------------- items
+
+        private static void RegisterItems()
+        {
+            var hide = new CustomItem(HidePrefab, "DeerHide", new ItemConfig
+            {
+                Name = "$item_rabbithide",
+                Description = "$item_rabbithide_desc",
+                Weight = 0.5f,
+            });
+            Tint(hide.ItemPrefab, new Color(0.85f, 0.75f, 0.62f, 1f));
+            hide.ItemPrefab.transform.localScale *= 0.7f;
+            hide.ItemDrop.m_itemData.m_shared.m_maxStackSize = 50;
+            SetIcon(hide);
+            ItemManager.Instance.AddItem(hide);
+
+            var meat = new CustomItem(MeatPrefab, "DeerMeat", new ItemConfig
+            {
+                Name = "$item_rabbitmeat",
+                Description = "$item_rabbitmeat_desc",
+                Weight = 0.5f,
+            });
+            meat.ItemPrefab.transform.localScale *= 0.7f;
+            SetIcon(meat);
+            ItemManager.Instance.AddItem(meat);
+
+            var cooked = new CustomItem(CookedPrefab, "CookedDeerMeat", new ItemConfig
+            {
+                Name = "$item_rabbitmeat_cooked",
+                Description = "$item_rabbitmeat_cooked_desc",
+                Weight = 0.5f,
+            });
+            cooked.ItemPrefab.transform.localScale *= 0.7f;
+            var food = cooked.ItemDrop.m_itemData.m_shared;
+            // Meadows tier: a bit less health than cooked boar, more stamina (it's lean).
+            food.m_food = 22f;
+            food.m_foodStamina = 18f;
+            food.m_foodBurnTime = 1200f;
+            food.m_foodRegen = 2f;
+            SetIcon(cooked);
+            ItemManager.Instance.AddItem(cooked);
+
+            ItemManager.Instance.AddItemConversion(new CustomItemConversion(new CookingConversionConfig
+            {
+                Station = "piece_cookingstation",
+                FromItem = MeatPrefab,
+                ToItem = CookedPrefab,
+                CookTime = 20f,
+            }));
+        }
+
+        private static void SetIcon(CustomItem item)
+        {
+            try
+            {
+                var sprite = RenderManager.Instance.Render(item.ItemPrefab, RenderManager.IsometricRotation);
+                if (sprite != null)
+                    item.ItemDrop.m_itemData.m_shared.m_icons = new[] { sprite };
+                else
+                    Plugin.Log.LogWarning("Icon render returned null for " + item.ItemPrefab.name);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Icon render failed for " + item.ItemPrefab.name + ": " + e.Message);
+            }
+        }
+
+        // ------------------------------------------------------------- creature
+
+        private static void RegisterCreature()
+        {
+            var config = new CreatureConfig
+            {
+                Name = "$enemy_rabbit",
+                Faction = Character.Faction.AnimalsVeg,
+            };
+            config.AddDropConfig(new DropConfig { Item = HidePrefab, Chance = 100f, MinAmount = 1, MaxAmount = 1, LevelMultiplier = true });
+            config.AddDropConfig(new DropConfig { Item = MeatPrefab, Chance = 100f, MinAmount = 1, MaxAmount = 2, LevelMultiplier = true });
+            config.AddSpawnConfig(new SpawnConfig
+            {
+                Name = "Rabbit_Meadows",
+                Biome = Heightmap.Biome.Meadows,
+                SpawnChance = s_spawnChance.Value,
+                SpawnInterval = 90f,
+                SpawnDistance = 30f,
+                MaxSpawned = s_maxSpawned.Value,
+                MinGroupSize = 1,
+                MaxGroupSize = 3,
+                GroupRadius = 6f,
+                MinLevel = 1,
+                MaxLevel = 2,
+                SpawnInForest = false,    // open meadows
+                SpawnOutsideForest = true,
+                SpawnAtDay = true,
+                SpawnAtNight = true,
+                MinAltitude = 1f,
+                MaxTilt = 25f,
+                HuntPlayer = false,
+            });
+
+            var rabbit = new CustomCreature(CreaturePrefab, "Hare", config);
+            var go = rabbit.Prefab;
+            go.transform.localScale *= s_scale.Value;
+            Tint(go, s_furTint.Value);
+
+            var character = go.GetComponent<Character>();
+            float speed = s_speedFactor.Value;
+            character.m_health = 10f;
+            character.m_runSpeed *= speed;
+            character.m_speed *= speed;
+            character.m_acceleration *= 1.5f;
+            character.m_turnSpeed *= 1.6f;
+            character.m_runTurnSpeed *= 1.8f;  // sharp cuts when fleeing
+
+            var ai = EnsureAnimalAI(go);
+            // Skittish: notices you early, bolts in zig-zags, settles back to grazing quickly.
+            ai.m_viewRange = Mathf.Max(ai.m_viewRange, 25f);
+            ai.m_hearRange = Mathf.Max(ai.m_hearRange, 20f);
+            ai.m_fleeRange = 15f;
+            ai.m_fleeAngle = 70f;
+            ai.m_fleeInterval = 0.6f;
+            ai.m_randomMoveInterval = 3f;
+            ai.m_randomMoveRange = 3f;
+            ai.m_afraidOfFire = true;
+            ai.m_avoidWater = true;
+            ai.m_timeToSafe = 6f;
+
+            CreatureManager.Instance.AddCreature(rabbit);
+            Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Hare clone): run " + character.m_runSpeed.ToString("F1") +
+                               ", health " + character.m_health);
+        }
+
+        /// <summary>If the base prefab isn't an AnimalAI (it might be a passive MonsterAI), swap it, keeping BaseAI settings.</summary>
+        private static AnimalAI EnsureAnimalAI(GameObject go)
+        {
+            var existing = go.GetComponent<BaseAI>();
+            if (existing is AnimalAI animal)
+                return animal;
+
+            var replacement = go.AddComponent<AnimalAI>();
+            if (existing != null)
+            {
+                foreach (var f in typeof(BaseAI).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                    f.SetValue(replacement, f.GetValue(existing));
+                Plugin.Log.LogInfo("Replaced " + existing.GetType().Name + " with AnimalAI on " + go.name);
+                Object.DestroyImmediate(existing);
+            }
+            return replacement;
+        }
+
+        // -------------------------------------------------------------- helpers
+
+        private static void Tint(GameObject go, Color tint)
+        {
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is ParticleSystemRenderer)
+                    continue;
+                var mats = r.sharedMaterials;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    if (mats[i] == null)
+                        continue;
+                    var m = new Material(mats[i]) { name = mats[i].name + "_rabbit" };
+                    if (m.HasProperty("_Color"))
+                        m.SetColor("_Color", m.GetColor("_Color") * tint);
+                    if (m.HasProperty("_EmissionColor"))
+                        m.SetColor("_EmissionColor", Color.black);
+                    mats[i] = m;
+                }
+                r.sharedMaterials = mats;
+            }
+        }
+
+        private static void Dump(string prefabName)
+        {
+            var go = PrefabManager.Cache.GetPrefab<GameObject>(prefabName);
+            if (go == null)
+            {
+                Plugin.Log.LogWarning("Dump: prefab " + prefabName + " not found");
+                return;
+            }
+            var sb = new StringBuilder("Dump " + prefabName + ": scale " + go.transform.localScale + "\n  components: ");
+            sb.Append(string.Join(", ", go.GetComponents<Component>().Select(c => c.GetType().Name)));
+            var ch = go.GetComponent<Character>();
+            if (ch != null)
+                sb.Append("\n  character: health " + ch.m_health + ", faction " + ch.m_faction + ", walk " + ch.m_walkSpeed +
+                          ", speed " + ch.m_speed + ", run " + ch.m_runSpeed + ", turn " + ch.m_turnSpeed + "/" + ch.m_runTurnSpeed +
+                          ", accel " + ch.m_acceleration);
+            var ai = go.GetComponent<BaseAI>();
+            if (ai != null)
+                sb.Append("\n  ai: " + ai.GetType().Name + ", view " + ai.m_viewRange + ", hear " + ai.m_hearRange + ", flee " +
+                          ai.m_fleeRange + "/" + ai.m_fleeAngle + "/" + ai.m_fleeInterval + ", randomMove " + ai.m_randomMoveInterval +
+                          "/" + ai.m_randomMoveRange);
+            var drop = go.GetComponent<CharacterDrop>();
+            if (drop != null)
+                sb.Append("\n  drops: " + string.Join(", ", drop.m_drops.Select(d => (d.m_prefab ? d.m_prefab.name : "null") +
+                          " " + d.m_amountMin + "-" + d.m_amountMax + " @" + d.m_chance)));
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                foreach (var m in r.sharedMaterials.Where(m => m != null))
+                    sb.Append("\n  renderer " + r.name + " (" + r.GetType().Name + "): " + m.name + " / " + m.shader.name +
+                              (m.HasProperty("_Color") ? " color " + m.GetColor("_Color") : "") +
+                              (m.HasProperty("_EmissionColor") ? " emission " + m.GetColor("_EmissionColor") : ""));
+            var item = go.GetComponent<ItemDrop>();
+            if (item != null)
+            {
+                var s = item.m_itemData.m_shared;
+                sb.Append("\n  item: " + s.m_name + ", food " + s.m_food + "/" + s.m_foodStamina + "/" + s.m_foodBurnTime + "s regen " +
+                          s.m_foodRegen + ", weight " + s.m_weight + ", stack " + s.m_maxStackSize);
+            }
+            Plugin.Log.LogInfo(sb.ToString());
+        }
+    }
+}

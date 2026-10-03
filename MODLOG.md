@@ -65,3 +65,18 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
   avancée à vitesse constante en longueur d'arc (dérivée numérique). Obstacle imprévu sur la courbe :
   demi-tour depuis le point de contact.
 - Config relue à chaud (date du .cfg vérifiée chaque seconde) : CurveWidth, CurveSide, vitesses, etc.
+
+## Test 2 (v0.2) : validé par Lekinox ("Parfait")
+
+## v0.3 : lapins des prairies
+- Créature `Rabbit` = clone de `Hare` (lièvre des Brumes : modèle et animations de bonds d'Iron Gate),
+  matériaux clonés et teintés (FurTint), émission coupée, échelle 0.85, santé 10, vitesse de course x1.2,
+  accélération x1.5, virages x1.6/x1.8. Faction AnimalsVeg.
+- IA : AnimalAI (remplace l'IA du Hare si ce n'en est pas une, en copiant les champs de BaseAI). Fuite en
+  zigzag sans patch : BaseAI.Flee retire une direction aléatoire de ±m_fleeAngle toutes les m_fleeInterval s
+  -> 70°, 0.6 s, portée 15 m. Errance courte (3 s / 3 m), a peur du feu, évite l'eau.
+- Spawn (Jotunn SpawnConfig) : Meadows, hors forêt, jour et nuit, 40 %, toutes les 90 s, max 3, groupes 1-3.
+- Drops : RabbitHide x1 (clone de DeerHide, teinté, échelle 0.7) et RabbitMeat x1-2 (clone de DeerMeat).
+- RabbitMeatCooked (clone de CookedDeerMeat) : 22 PV, 18 endurance, 1200 s, régén 2. Broche 20 s.
+- Icônes : RenderManager.Render(prefab, IsometricRotation) sur les clones teintés.
+- Le log dumpe Hare, DeerHide, DeerMeat et CookedDeerMeat (composants, IA, matériaux, drops) pour ajuster.

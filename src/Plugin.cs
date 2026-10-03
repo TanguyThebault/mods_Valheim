@@ -50,6 +50,7 @@ namespace ThrowingAxe
                 "Extra rotation (degrees) applied to the flat-lying axe model, if it doesn't look right.");
             _configStamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
+            Rabbits.BindConfig(Config);
             AddLocalization();
             PrefabManager.OnVanillaPrefabsAvailable += CreateItem;
             new Harmony(Guid).PatchAll();
@@ -73,6 +74,7 @@ namespace ThrowingAxe
         private void AddLocalization()
         {
             var loc = LocalizationManager.Instance.GetLocalization();
+            Rabbits.AddTranslations(loc);
             loc.AddTranslation("English", new Dictionary<string, string>
             {
                 { "item_axethrowing", "Returning Axe" },
@@ -127,6 +129,15 @@ namespace ThrowingAxe
             ItemManager.Instance.AddItem(item);
             Log.LogInfo("Registered " + ItemPrefab + " (clone of AxeIron, throw from SpearBronze, anim '"
                         + throwAttack.m_attackAnimation + "')");
+
+            try
+            {
+                Rabbits.Register();
+            }
+            catch (System.Exception e)
+            {
+                Log.LogError("Rabbits failed to register: " + e);
+            }
         }
     }
 
