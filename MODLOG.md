@@ -341,3 +341,28 @@ gros.
   décors (OnGUI, projection des bounds des renderers), nos créatures en vert ; Character.GetAllCharacters() et
   RandomFlyingBird.Instances. Pas encore vu en jeu.
 - Références ajoutées : assembly_guiutils (Localization), IMGUI, TextRendering, AnimationModule.
+
+## v0.12 : séparation en deux mods ; corbeaux vanilla ; correctifs du renard ; nouvelles zones
+- **Deux mods** (2026-10-03) :
+  - valheim-wildlife (ce dépôt, ex-valheim-throwing-axe) : GUID lekinox.wildlife, Wildlife.dll,
+    BepInEx/plugins/Wildlife/, config lekinox.wildlife.cfg. La faune, les loots et les recettes associées.
+  - ../valheim-legendary-weapons : GUID lekinox.legendaryweapons, LegendaryWeapons.dll,
+    BepInEx/plugins/LegendaryWeapons/, config lekinox.legendaryweapons.cfg. La hache de retour (prefab
+    AxeThrowing inchangé).
+  - L'ancien lekinox.throwingaxe.cfg a été copié vers les deux nouveaux et gardé en .bak ; plugins/ThrowingAxe
+    a été supprimé.
+- Corbeaux : BlackForestCrow supprimé ; le Crow vanilla est ajouté à nos spawns de la Forêt Noire (le jeu
+  n'en fait pas apparaître). Le spawner dump confirme les créatures vanilla de la Forêt Noire : Deer,
+  Greydwarf (+Elite, Shaman), Bjorn, Troll, Skeleton (après Bonemass), Draugr (après Elder, brume), Goblin
+  (après Yagluth), Seeker, Charred, événements Fimbulvinter, FireFlies, Odin, plus mouettes et poissons.
+- Zones : mulots Prairies + Forêt Noire ; chouettes Prairies + Forêt Noire ; moineaux Prairies + Plaines.
+- Renard :
+  - Hurlement : MonsterAI s'endort (m_fallAsleepDistance) et joue m_wakeupEffects (le hurlement) au réveil.
+    m_fallAsleepDistance = 0 et m_sleeping = false ; wakeup/sleep, jump/slide et consumeItem passés à
+    notre voix ou rendus muets.
+  - Faim : FoxTag chasse 60-120 s puis se repose 150-300 s ; une proie tuée (cible morte) le rassasie.
+    IsEnemy(renard, x) = (faim && lapin/mulot) || provocation.
+  - Zigzag sur place : l'ancien postfix laissait MonsterAI se déplacer puis imposait Flee chaque frame. Il
+    est remplacé par un prefix qui, quand un joueur menace (hystérésis 10/16 m), exécute BaseAI.UpdateAI en
+    appel non virtuel (AccessTools.MethodDelegate virtualCall=false) puis Flee, et saute la décision de
+    MonsterAI. Errance plus calme (8 s / 10 m), fuite rectiligne (20 m, 25°, 2.5 s).

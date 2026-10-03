@@ -8,7 +8,7 @@ using Jotunn.Entities;
 using Jotunn.Managers;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// Meadows rabbits: a re-skinned clone of the Mistlands Hare (Iron Gate's own low-poly model and hop
@@ -397,7 +397,7 @@ namespace ThrowingAxe
     }
 }
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>Marks rabbit instances for the patches below.</summary>
     public class RabbitTag : MonoBehaviour

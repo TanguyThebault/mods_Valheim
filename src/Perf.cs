@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// Lightweight self-profiler: every 10 s logs the frame rate, the worst frame, and the time spent in each

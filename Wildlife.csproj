@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <AssemblyName>ThrowingAxe</AssemblyName>
-    <RootNamespace>ThrowingAxe</RootNamespace>
+    <AssemblyName>Wildlife</AssemblyName>
+    <RootNamespace>Wildlife</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

@@ -3,7 +3,7 @@ using System.Globalization;
 using Jotunn.Entities;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// Test scene for screenshots: `ta_show &lt;prefab&gt; [distance] [height] [fly|front]` spawns a creature in front of

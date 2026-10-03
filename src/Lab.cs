@@ -6,14 +6,14 @@ using System.Text;
 using Jotunn.Managers;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// Model lab: renders a prefab and every animation clip of its Animator into PNG sheets, with the skeleton
     /// drawn on top, from a dedicated camera far from the world. Works from the main menu, no input needed:
     /// drop a request file and read the PNGs.
     ///
-    ///   BepInEx/plugins/ThrowingAxe/lab/request.txt   one job per line:  &lt;prefab&gt; [frames=8] [tile=256]
+    ///   BepInEx/plugins/Wildlife/lab/request.txt   one job per line:  &lt;prefab&gt; [frames=8] [tile=256]
     ///                                                 or "refit" to re-apply the generated models with the
     ///                                                 current [MouseFit] config before rendering
     ///   -> lab/&lt;prefab&gt;_bind.png     bind pose: side | front | top
@@ -250,7 +250,7 @@ namespace ThrowingAxe
     internal class LabCommand : Jotunn.Entities.ConsoleCommand
     {
         public override string Name => "ta_lab";
-        public override string Help => "ta_lab <prefab> [frames=8] [tile=256] - render the model and its animations to plugins/ThrowingAxe/lab";
+        public override string Help => "ta_lab <prefab> [frames=8] [tile=256] - render the model and its animations to plugins/Wildlife/lab";
 
         public override void Run(string[] args)
         {
@@ -261,7 +261,7 @@ namespace ThrowingAxe
             }
             var log = new StringBuilder();
             Plugin.Instance.StartCoroutine(Lab.Render(args[0], args.Length > 1 ? int.Parse(args[1]) : 8, args.Length > 2 ? int.Parse(args[2]) : 256, log));
-            Console.instance.Print("Rendering " + args[0] + " to plugins/ThrowingAxe/lab ...");
+            Console.instance.Print("Rendering " + args[0] + " to plugins/Wildlife/lab ...");
         }
     }
 }

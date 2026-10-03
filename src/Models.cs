@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>A generated model (tools/build_models.py): y up, facing +z, the animal's left towards -x.</summary>
     internal class ModelData

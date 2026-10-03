@@ -6,7 +6,7 @@ using Jotunn.Entities;
 using Jotunn.Managers;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// Gives a cloned creature its own look and voice, so nothing of the base animal shows through:

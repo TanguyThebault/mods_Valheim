@@ -5,7 +5,7 @@ using Jotunn.Entities;
 using Jotunn.Managers;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// Field mice: tiny creatures on the Hare's skeleton and animations, with their own proportions (small ears,
@@ -113,8 +113,8 @@ namespace ThrowingAxe
             config.AddDropConfig(new DropConfig { Item = MeatPrefab, Chance = s_meatChance.Value, MinAmount = 1, MaxAmount = 1 });
             config.AddSpawnConfig(new SpawnConfig
             {
-                Name = CreaturePrefab + "_Meadows",
-                Biome = Heightmap.Biome.Meadows,
+                Name = CreaturePrefab + "_Meadows_BlackForest",
+                Biome = Heightmap.Biome.Meadows | Heightmap.Biome.BlackForest,
                 SpawnChance = 50f,
                 SpawnInterval = 60f,
                 SpawnDistance = 25f,

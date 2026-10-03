@@ -8,13 +8,13 @@ using Jotunn.Entities;
 using Jotunn.Managers;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// Perching birds built on the vanilla RandomFlyingBird (the crow's flight, landing and "fly off when a
     /// player comes close" logic), each as its own prefab with its own shape, coat and voice:
     /// - Meadow sparrow: tiny, short beak, brown with a red breast; sings by day, roosts high at night;
-    /// - Black Forest crow: croaks by day, roosts high at night, keeps its feathers;
+    /// The vanilla crow is left as it is and only spawned in the Black Forest.
     /// - Owl: stout, short beak, tawny; hides high by day (only flies off if disturbed), hoots and hunts
     ///   rabbits and field mice at night.
     /// All only perch on things (rocks, trunks, roofs, fences), never the ground, and fly at least
@@ -23,13 +23,11 @@ namespace ThrowingAxe
     internal static class Birds
     {
         public const string SparrowPrefab = "MeadowSparrow";
-        public const string CrowPrefab = "BlackForestCrow";
         public const string OwlPrefab = "MeadowOwl";
 
         private static ConfigEntry<float> s_sparrowScale;
         private static ConfigEntry<int> s_sparrowMax;
         private static ConfigEntry<int> s_crowMax;
-        private static ConfigEntry<float> s_crowVolume;
         private static ConfigEntry<float> s_owlVolume;
         private static ConfigEntry<int> s_owlMax;
         internal static ConfigEntry<float> SongVolume;
@@ -45,8 +43,7 @@ namespace ThrowingAxe
             SongVolume = config.Bind("Sparrow", "SongVolume", 0.5f, "Song volume, 0-1 (live).");
             SongInterval = config.Bind("Sparrow", "SongInterval", 11f,
                 "Average seconds between two songs of a perched sparrow; about 2.5x longer in flight (live).");
-            s_crowMax = config.Bind("Crow", "MaxSpawned", 3, "Max Black Forest crows around a player (restart).");
-            s_crowVolume = config.Bind("Crow", "Volume", 0.8f, "Croak volume, 0-1 (live).");
+            s_crowMax = config.Bind("Crow", "MaxSpawned", 3, "Max vanilla crows around a player in the Black Forest (restart).");
             s_owlMax = config.Bind("Owl", "MaxSpawned", 1, "Max owls around a player (restart).");
             s_owlVolume = config.Bind("Owl", "Volume", 0.7f, "Hoot volume, 0-1 (live).");
             s_owlFlip = config.Bind("Owl", "FlipFlyingModel", false,
@@ -59,11 +56,11 @@ namespace ThrowingAxe
         {
             loc.AddTranslation("English", new Dictionary<string, string>
             {
-                { "sparrow", "Sparrow" }, { "blackforest_crow", "Crow" }, { "meadow_owl", "Owl" },
+                { "sparrow", "Sparrow" }, { "meadow_owl", "Owl" },
             });
             loc.AddTranslation("French", new Dictionary<string, string>
             {
-                { "sparrow", "Moineau" }, { "blackforest_crow", "Corbeau" }, { "meadow_owl", "Chouette" },
+                { "sparrow", "Moineau" }, { "meadow_owl", "Chouette" },
             });
         }
 
@@ -76,10 +73,9 @@ namespace ThrowingAxe
                 return;
             }
             Voices["sparrow"] = new VoiceSpec(Look.LoadClips("sfx", "sparrow_song"), () => SongInterval.Value, () => SongVolume.Value, 35f, day: true, night: false);
-            Voices["crow"] = new VoiceSpec(Look.LoadClips("sfx_crow", "crow_caw"), () => 12f, () => s_crowVolume.Value, 60f, day: true, night: false);
             Voices["owl"] = new VoiceSpec(Look.LoadClips("sfx_owl", "owl_hoot"), () => 18f, () => s_owlVolume.Value, 70f, day: false, night: true);
             RegisterSparrow(crow);
-            RegisterCrow(crow);
+            SpawnVanillaCrows(crow);
             RegisterOwl(crow);
         }
 
@@ -111,24 +107,14 @@ namespace ThrowingAxe
             Reshape(go, beak: 0.55f, tail: 0.85f, width: 1.1f, head: 1.05f);
             Look.Paint(go, Look.Mask("sparrow"), new Color(0.55f, 0.40f, 0.26f));
             Finish(go, "$sparrow", "sparrow", restAtNight: true, restByDay: false);
-            AddSpawn(go, Heightmap.Biome.Meadows, s_sparrowMax.Value, 3, day: true, night: false);
+            AddSpawn(go, Heightmap.Biome.Meadows | Heightmap.Biome.Plains, s_sparrowMax.Value, 3, day: true, night: false);
         }
 
-        private static void RegisterCrow(GameObject crow)
+        /// <summary>The vanilla crow (its own model, calls and feathers), spawned in the Black Forest.</summary>
+        private static void SpawnVanillaCrows(GameObject crow)
         {
-            var go = PrefabManager.Instance.CreateClonedPrefab(CrowPrefab, crow);
-            var bird = go.GetComponent<RandomFlyingBird>();
-            bird.m_flyRange = 25f;
-            bird.m_minAlt = 4f;
-            bird.m_maxAlt = 12f;
-            bird.m_speed = 9f;
-            bird.m_landChance = 0.5f;
-            bird.m_landDuration = 14f;
-            bird.m_avoidDangerDistance = 7f;
-            foreach (var d in go.GetComponentsInChildren<Destructible>(true))
-                d.m_destroyedEffect = OwnFeathers(d.m_destroyedEffect, CrowPrefab, Color.black);
-            Finish(go, "$blackforest_crow", "crow", restAtNight: true, restByDay: false);
-            AddSpawn(go, Heightmap.Biome.BlackForest, s_crowMax.Value, 2, day: true, night: false);
+            AddSpawn(crow, Heightmap.Biome.BlackForest, s_crowMax.Value, 2, day: true, night: false);
+            Plugin.Log.LogInfo("Vanilla Crow spawns added to the Black Forest");
         }
 
         private static void RegisterOwl(GameObject crow)
@@ -704,7 +690,7 @@ namespace ThrowingAxe
         {
             if (List != null)
                 return;
-            var holder = new GameObject("ThrowingAxe_spawnlist");
+            var holder = new GameObject("Wildlife_spawnlist");
             Object.DontDestroyOnLoad(holder);
             List = holder.AddComponent<SpawnSystemList>();
         }

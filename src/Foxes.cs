@@ -8,7 +8,7 @@ using Jotunn.Entities;
 using Jotunn.Managers;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// Meadow foxes: their own creature built on the Wolf's skeleton and animations, with their own painted
@@ -193,6 +193,15 @@ namespace ThrowingAxe
                 ai.m_enableHuntPlayer = false;
                 ai.m_fleeIfLowHealth = 0.4f;
                 ai.m_afraidOfFire = true;
+                // Wolves fall asleep when no player is near and howl when they wake up: a fox never sleeps.
+                ai.m_fallAsleepDistance = 0f;
+                ai.m_sleeping = false;
+                // Calm wandering, and a clean, straight getaway when it backs off from a player.
+                ai.m_randomMoveInterval = 8f;
+                ai.m_randomMoveRange = 10f;
+                ai.m_fleeRange = 20f;
+                ai.m_fleeAngle = 25f;
+                ai.m_fleeInterval = 2.5f;
             }
 
             Look.OwnRagdolls(character.m_deathEffects, CreaturePrefab, mask, FoxRed);
@@ -252,12 +261,18 @@ namespace ThrowingAxe
             character.m_critHitEffects = Look.Voice(character.m_critHitEffects, hurt);
             character.m_backstabHitEffects = Look.Voice(character.m_backstabHitEffects, hurt);
             character.m_deathEffects = Look.Voice(character.m_deathEffects, death);
+            character.m_jumpEffects = Look.Voice(character.m_jumpEffects, null);
+            character.m_slideEffects = Look.Voice(character.m_slideEffects, null);
+            if (humanoid != null)
+                humanoid.m_consumeItemEffects = Look.Voice(humanoid.m_consumeItemEffects, null);
             if (ai != null)
             {
                 ai.m_alertedEffects = Look.Voice(ai.m_alertedEffects, calls);
                 ai.m_idleSound = Look.Voice(new EffectList(), calls);
                 ai.m_idleSoundInterval = 25f;
                 ai.m_idleSoundChance = 0.3f;
+                ai.m_wakeupEffects = Look.Voice(ai.m_wakeupEffects, calls);   // the wolf howls here
+                ai.m_sleepEffects = Look.Voice(ai.m_sleepEffects, null);
             }
             if (humanoid?.m_defaultItems != null)
                 foreach (var item in humanoid.m_defaultItems)
@@ -381,51 +396,103 @@ namespace ThrowingAxe
         }
     }
 
-    /// <summary>Marks foxes; remembers who provoked them.</summary>
+    /// <summary>
+    /// Fox state: hunger (hunts for a while, then rests; a kill also sates it), who provoked it, and whether it
+    /// is backing off from a player.
+    /// </summary>
     public class FoxTag : MonoBehaviour
     {
-        internal static readonly HashSet<Character> All = new HashSet<Character>();
-        private static readonly Dictionary<Character, KeyValuePair<Character, float>> s_provoked =
-            new Dictionary<Character, KeyValuePair<Character, float>>();
+        internal static readonly Dictionary<Character, FoxTag> All = new Dictionary<Character, FoxTag>();
+        private static readonly AccessTools.FieldRef<MonsterAI, Character> s_target =
+            AccessTools.FieldRefAccess<MonsterAI, Character>("m_targetCreature");
         private const float ProvokedTime = 20f;
+
         private Character _character;
+        private MonsterAI _ai;
+        private Character _provoker;
+        private float _provokedAt = -999f;
+        private bool _hungry;
+        private float _timer;
+        private bool _keepingAway;
+
+        public bool Hungry => _hungry;
 
         private void Awake()
         {
             _character = GetComponent<Character>();
+            _ai = GetComponent<MonsterAI>();
             if (_character != null)
-                All.Add(_character);
+                All[_character] = this;
+            _hungry = Random.value < 0.4f;
+            _timer = _hungry ? Random.Range(30f, 90f) : Random.Range(30f, 150f);
         }
 
         private void OnDestroy()
         {
             if (_character != null)
-            {
                 All.Remove(_character);
-                s_provoked.Remove(_character);
+        }
+
+        private void Update()
+        {
+            _timer -= Time.deltaTime;
+            if (_hungry && _ai != null)
+            {
+                var target = s_target(_ai);
+                if (target != null && target.IsDead() && IsPrey(target))
+                    Rest();   // caught something
+            }
+            if (_timer > 0f)
+                return;
+            if (_hungry)
+                Rest();
+            else
+            {
+                _hungry = true;
+                _timer = Random.Range(60f, 120f);
             }
         }
 
-        internal static void Provoke(Character fox, Character attacker)
+        private void Rest()
         {
-            if (fox != null && attacker != null)
-                s_provoked[fox] = new KeyValuePair<Character, float>(attacker, Time.time);
+            _hungry = false;
+            _timer = Random.Range(150f, 300f);
         }
 
-        internal static bool IsProvokedBy(Character fox, Character other)
+        internal static bool IsPrey(Character c)
         {
-            return s_provoked.TryGetValue(fox, out var p) && p.Key == other && Time.time - p.Value < ProvokedTime;
+            return RabbitTag.All.Contains(c) || MouseTag.All.Contains(c);
         }
 
-        internal static bool IsProvoked(Character fox)
+        internal void Provoke(Character attacker)
         {
-            return s_provoked.TryGetValue(fox, out var p) && p.Key != null && Time.time - p.Value < ProvokedTime;
+            _provoker = attacker;
+            _provokedAt = Time.time;
+        }
+
+        internal bool IsProvokedBy(Character other)
+        {
+            return _provoker != null && _provoker == other && Time.time - _provokedAt < ProvokedTime;
+        }
+
+        /// <summary>The player to back away from, with hysteresis (starts at KeepAwayDistance, stops 6 m further).</summary>
+        internal Player Threat()
+        {
+            if (_provoker != null && Time.time - _provokedAt < ProvokedTime)
+            {
+                _keepingAway = false;   // provoked: it fights back instead
+                return null;
+            }
+            float range = Foxes.KeepAwayDistance.Value + (_keepingAway ? 6f : 0f);
+            var p = Player.GetClosestPlayer(transform.position, range);
+            _keepingAway = p != null;
+            return p;
         }
     }
 
     /// <summary>
-    /// Who fights whom: a fox only goes after rabbits (and, for a while, whoever hit it); rabbits flee foxes.
-    /// Others judging a fox keep the vanilla answer (players can hunt foxes).
+    /// Who fights whom: a hungry fox goes after rabbits and field mice (and, for a while, whoever hit it);
+    /// rabbits and mice always flee foxes. Others judging a fox keep the vanilla answer (players can hunt foxes).
     /// </summary>
     [HarmonyPatch(typeof(BaseAI), nameof(BaseAI.IsEnemy), new[] { typeof(Character), typeof(Character) })]
     internal static class FoxEnemies
@@ -441,9 +508,9 @@ namespace ThrowingAxe
         {
             if (a == null || b == null)
                 return;
-            if (FoxTag.All.Contains(a))
-                __result = RabbitTag.All.Contains(b) || FoxTag.IsProvokedBy(a, b);
-            else if (RabbitTag.All.Contains(a) && FoxTag.All.Contains(b))
+            if (FoxTag.All.TryGetValue(a, out var fox))
+                __result = (fox.Hungry && FoxTag.IsPrey(b)) || fox.IsProvokedBy(b);
+            else if (FoxTag.All.ContainsKey(b) && FoxTag.IsPrey(a))
                 __result = true;
         }
     }
@@ -453,46 +520,44 @@ namespace ThrowingAxe
     {
         private static void Prefix(MonsterAI __instance, Character attacker)
         {
-            long t = Perf.Begin();
-            try { PrefixImpl(__instance, attacker); }
-            finally { Perf.End("FoxProvoked", t); }
-        }
-
-        private static void PrefixImpl(MonsterAI __instance, Character attacker)
-        {
             var c = __instance.GetComponent<Character>();
-            if (c != null && FoxTag.All.Contains(c))
-                FoxTag.Provoke(c, attacker);
+            if (c != null && FoxTag.All.TryGetValue(c, out var fox) && attacker != null)
+                fox.Provoke(attacker);
         }
     }
 
-    /// <summary>An unprovoked fox backs away from a nearby player (overrides whatever MonsterAI chose to do).</summary>
+    /// <summary>
+    /// An unprovoked fox backs away from a nearby player. Done in a prefix that replaces MonsterAI's own
+    /// decision for that frame (the base BaseAI update still runs): the old postfix let MonsterAI walk
+    /// somewhere and then overrode it with a flee every frame, which made the fox zig-zag on the spot.
+    /// </summary>
     [HarmonyPatch(typeof(MonsterAI), nameof(MonsterAI.UpdateAI))]
     internal static class FoxKeepAway
     {
-        private static readonly MethodInfo s_flee = AccessTools.Method(typeof(BaseAI), "Flee");
-        private static readonly object[] s_args = new object[2];
+        private static readonly System.Func<BaseAI, float, bool> s_baseUpdate =
+            AccessTools.MethodDelegate<System.Func<BaseAI, float, bool>>(AccessTools.Method(typeof(BaseAI), nameof(BaseAI.UpdateAI)), null, false);
+        private static readonly System.Func<BaseAI, float, Vector3, bool> s_flee =
+            AccessTools.MethodDelegate<System.Func<BaseAI, float, Vector3, bool>>(AccessTools.Method(typeof(BaseAI), "Flee"), null, false);
 
-        private static void Postfix(MonsterAI __instance, float dt, bool __result)
+        private static bool Prefix(MonsterAI __instance, float dt, ref bool __result)
         {
             long t = Perf.Begin();
-            try { PostfixImpl(__instance, dt, __result); }
+            try { return PrefixImpl(__instance, dt, ref __result); }
             finally { Perf.End("FoxKeepAway", t); }
         }
 
-        private static void PostfixImpl(MonsterAI __instance, float dt, bool __result)
+        private static bool PrefixImpl(MonsterAI ai, float dt, ref bool __result)
         {
-            if (!__result)
-                return;
-            var c = __instance.GetComponent<Character>();
-            if (c == null || !FoxTag.All.Contains(c) || FoxTag.IsProvoked(c))
-                return;
-            var player = Player.GetClosestPlayer(c.transform.position, Foxes.KeepAwayDistance.Value);
-            if (player == null)
-                return;
-            s_args[0] = dt;
-            s_args[1] = player.transform.position;
-            s_flee.Invoke(__instance, s_args);
+            var fox = ai.GetComponent<FoxTag>();
+            if (fox == null)
+                return true;
+            var threat = fox.Threat();
+            if (threat == null)
+                return true;
+            __result = s_baseUpdate(ai, dt);
+            if (__result)
+                s_flee(ai, dt, threat.transform.position);
+            return false;
         }
     }
 }

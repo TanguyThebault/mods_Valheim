@@ -3,7 +3,7 @@ using System.Linq;
 using Jotunn.Entities;
 using UnityEngine;
 
-namespace ThrowingAxe
+namespace Wildlife
 {
     /// <summary>
     /// `ta_overlay [filter|off] [range]`: draws a frame, the name and the distance of every creature and bird
@@ -36,7 +36,7 @@ namespace ThrowingAxe
         private static CreatureOverlay s_instance;
         private static readonly string[] OurPrefabs =
         {
-            Rabbits.CreaturePrefab, Foxes.CreaturePrefab, Mice.CreaturePrefab, Birds.SparrowPrefab, Birds.CrowPrefab, Birds.OwlPrefab,
+            Rabbits.CreaturePrefab, Foxes.CreaturePrefab, Mice.CreaturePrefab, Birds.SparrowPrefab, Birds.OwlPrefab,
         };
 
         private string _filter = "";
@@ -49,7 +49,7 @@ namespace ThrowingAxe
         {
             if (s_instance == null)
             {
-                var go = new GameObject("ThrowingAxe_overlay");
+                var go = new GameObject("Wildlife_overlay");
                 DontDestroyOnLoad(go);
                 s_instance = go.AddComponent<CreatureOverlay>();
             }
