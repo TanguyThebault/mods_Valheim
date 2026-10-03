@@ -318,6 +318,42 @@ namespace ThrowingAxe
             shared.m_setStatusEffect = null;
         }
 
+        /// <summary>
+        /// Red fur, but the metal chain and clasp keep their colour (tinting metal orange made a white-hot
+        /// highlight on the shoulder). Logs each material's shine settings for checking.
+        /// </summary>
+        private static void TintCape(GameObject go)
+        {
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is ParticleSystemRenderer)
+                    continue;
+                var mats = r.sharedMaterials;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    if (mats[i] == null)
+                        continue;
+                    var m = new Material(mats[i]) { name = mats[i].name + "_fox" };
+                    var info = new System.Text.StringBuilder("Cape material " + r.name + "/" + m.name + " (" + m.shader.name + "):");
+                    for (int p = 0; p < m.shader.GetPropertyCount(); p++)
+                    {
+                        var type = m.shader.GetPropertyType(p);
+                        string n = m.shader.GetPropertyName(p);
+                        if (type == UnityEngine.Rendering.ShaderPropertyType.Float || type == UnityEngine.Rendering.ShaderPropertyType.Range)
+                            info.Append(" " + n + "=" + m.GetFloat(n).ToString("F2"));
+                    }
+                    Plugin.Log.LogInfo(info.ToString());
+                    bool metal = m.name.IndexOf("Chain", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (!metal && m.HasProperty("_Color"))
+                        m.SetColor("_Color", m.GetColor("_Color") * FoxRed);
+                    if (m.HasProperty("_EmissionColor"))
+                        m.SetColor("_EmissionColor", Color.black);
+                    mats[i] = m;
+                }
+                r.sharedMaterials = mats;
+            }
+        }
+
         private static void RegisterCape()
         {
             var cape = new CustomItem(CapePrefab, "CapeWolf", new ItemConfig
@@ -332,7 +368,7 @@ namespace ThrowingAxe
                     new RequirementConfig("LeatherScraps", 2, 0, true),
                 },
             });
-            Rabbits.Tint(cape.ItemPrefab, FoxRed);
+            TintCape(cape.ItemPrefab);
             var shared = cape.ItemDrop.m_itemData.m_shared;
             MakeCosmetic(shared);
             shared.m_armor = 1f;

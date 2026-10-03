@@ -310,3 +310,6 @@ gros.
 - Cape de renard : fort reflet blanc à l'épaule (là où sont la tête de loup et le fermoir en métal,
   WolfCapeChain), qui disparaît quand on l'enlève. À traiter : ne pas teinter le métal, vérifier la
   brillance.
+- Correctif de la cape : TintCape teinte seulement la fourrure ; le matériau WolfCapeChain (métal) garde sa
+  couleur. Les paramètres flottants des shaders (brillance, etc.) de chaque matériau sont écrits dans le log
+  pour pouvoir vérifier. Correctifs queue et cape installés ; c'est Lekinox qui teste.
