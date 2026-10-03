@@ -331,7 +331,8 @@ namespace ThrowingAxe
         /// so the mouse's body (tail base to head) matches the hare's, feet on the hare's feet. Vertices are
         /// skinned by region of the mouse model: tail, ears, head, each of the four legs, spine.
         /// </summary>
-        public static bool MouseOnHare(SkinnedMeshRenderer smr, ModelData d)
+        public static bool MouseOnHare(SkinnedMeshRenderer smr, ModelData d, float scaleMul = 1f, float lift = 0f,
+            float forward = 0f, float pitch = 0f)
         {
             if (smr.sharedMesh == null)
                 return false;
@@ -360,30 +361,38 @@ namespace ThrowingAxe
             // mouse model (normalised z: 0 tail tip .. 1 nose): tail base ~0.36, head centre ~0.88
             float zLen = d.Bounds.size.z;
             float tailBase = d.Bounds.min.z + 0.36f * zLen, headC = d.Bounds.min.z + 0.88f * zLen;
-            float scale = hareLength / (headC - tailBase);
+            float scale = hareLength / (headC - tailBase) * scaleMul;
+            // live tuning ([MouseFit]): shifts in units of the hare's body length, pitch around the left axis
+            dst += up * (lift * hareLength) + fwd * (forward * hareLength);
             Vector3 src = new Vector3(d.Bounds.center.x, d.Bounds.min.y, (tailBase + headC) / 2f);
-            var rot = Rotation(Vector3.forward, Vector3.up, Vector3.left, fwd, up, left);
+            var rot = Matrix4x4.Rotate(Quaternion.AngleAxis(pitch, left)) * Rotation(Vector3.forward, Vector3.up, Vector3.left, fwd, up, left);
             Transform(d, rot, scale, src, dst, out var pos, out var nrm);
 
             int[] B(params string[] names) => names.Where(sk.Has).Select(n => sk.Index[n]).ToArray();
             var tailRoot = B("Tail", "Hips");
-            var hips = B("Hips");
-            var head = B("Head", "Neck");
+            var tailMid = B("Hips", "Root");
+            var tailEnd = B("Root");
+            // The hare's head bone nods and turns a lot (and rears up when alert): a mouse head on it dropped
+            // its nose and twisted. Neck and upper spine carry the head; only the ears keep their own bones.
+            var head = B("Neck", "Spine2");
             var earL = B("Ear.l", "ear1.l");
             var earR = B("Ear.r", "ear1.r");
             var spine = B("Hips", "Spine", "Spine1", "Spine2", "Neck", "Shoulder.l", "Shoulder.r");
-            var backL = B("BackUpperLeg.l", "BackLowerLeg.l", "BackFoot.l", "BackToe.l");
-            var backR = B("BackUpperLeg.r", "BackLowerLeg.r", "BackFoot.r", "BackToe.r");
-            var frontL = B("FrontUpperLeg.l", "FrontLowerLeg.l", "FrontFoot.l");
-            var frontR = B("FrontUpperLeg.r", "FrontLowerLeg.r", "FrontFoot.r");
+            // The hare's lower legs and feet reach far beyond a mouse's short legs; skinning mouse feet to them
+            // stretched the legs into long sticks. Mouse legs only follow the thighs / shoulders.
+            var backL = B("BackUpperLeg.l", "Hips");
+            var backR = B("BackUpperLeg.r", "Hips");
+            var frontL = B("FrontUpperLeg.l", "Shoulder.l");
+            var frontR = B("FrontUpperLeg.r", "Shoulder.r");
 
             var weights = Skin(sk, pos, i =>
             {
                 Vector3 n = d.Norm(i);
                 bool isLeft = d.Pos[i].x < d.Bounds.center.x;   // the model's left is -x
-                // The hare's tail bone flicks up; a long mouse tail on it alone sticks up like a fin. Only the
-                // base follows the tail bone, the rest trails with the hips.
-                if (n.z < 0.33f) return n.z < 0.22f ? hips : tailRoot;
+                // The hare's tail bone flicks up and its hips tilt a lot: a long mouse tail on them sticks up
+                // or hangs straight down. Base on tail+hips, middle on hips+root, tip on the (steady) root, so
+                // the tail trails behind the animal.
+                if (n.z < 0.33f) return n.z < 0.12f ? tailEnd : n.z < 0.22f ? tailMid : tailRoot;
                 if (n.y > 0.78f && n.z > 0.6f) return isLeft ? earL : earR;
                 if (n.z > 0.76f) return head;
                 if (n.y < 0.32f) return n.z > 0.6f ? (isLeft ? frontL : frontR) : (isLeft ? backL : backR);

@@ -638,13 +638,55 @@ namespace ThrowingAxe
                 if (new Vector2(wp.x - p.x, wp.z - p.z).magnitude < 4f)
                     return; // landing on a perch, or striking a prey
             }
-            float floor = Mathf.Max(ZoneSystem.instance.GetGroundHeight(p), ZoneSystem.instance.m_waterLevel);
-            float min = floor + Birds.MinClearance.Value;
-            if (p.y >= min)
-                return;
-            p.y = p.y < floor + 0.3f ? floor + 0.3f : p.y;
-            p.y = Mathf.Min(min, p.y + 12f * dt); // climb back smoothly
-            bird.transform.position = p;
+            float clearance = Birds.MinClearance.Value;
+
+            // Cruise waypoints never sit below the clearance (the vanilla height comes from GetSolidHeight at
+            // the waypoint only, so a path over a hill could still aim into the slope).
+            if (!s_groundwp(bird))
+            {
+                Vector3 wp = s_waypoint(bird);
+                float wpMin = Floor(wp) + clearance + 1f;
+                if (wp.y < wpMin)
+                {
+                    wp.y = wpMin;
+                    s_waypoint(bird) = wp;
+                }
+            }
+
+            // Look ahead along the flight path and pull the nose up early and smoothly, like a real bird,
+            // instead of clamping the position (which looked like hitting an invisible floor).
+            Transform tr = bird.transform;
+            Vector3 fwd = tr.forward;
+            float look = Mathf.Max(3f, bird.m_speed * 0.9f);
+            float floorHere = Floor(p);
+            float floorAhead = Mathf.Max(Floor(p + fwd * look), Floor(p + fwd * look * 0.5f));
+            float floor = Mathf.Max(floorHere, floorAhead);
+            float soft = floor + clearance + 1.5f;                  // start easing out of the dive here
+            float projected = Mathf.Min(p.y, p.y + fwd.y * look);
+            if (projected < soft)
+            {
+                float urgency = Mathf.Clamp01((soft - projected) / (clearance + 1.5f));
+                Vector3 flat = Vector3.ProjectOnPlane(fwd, Vector3.up);
+                if (flat.sqrMagnitude < 1e-4f)
+                    flat = tr.up;
+                Vector3 wanted = (flat.normalized + Vector3.up * Mathf.Lerp(0.05f, 0.9f, urgency)).normalized;
+                if (fwd.y < wanted.y)
+                {
+                    float rate = Mathf.Lerp(60f, 240f, urgency);    // degrees per second
+                    tr.rotation = Quaternion.RotateTowards(tr.rotation, Quaternion.LookRotation(wanted, Vector3.up), rate * dt);
+                }
+            }
+            // last resort only: never inside the ground
+            if (p.y < floorHere + 0.3f)
+            {
+                p.y = floorHere + 0.3f;
+                tr.position = p;
+            }
+        }
+
+        private static float Floor(Vector3 p)
+        {
+            return Mathf.Max(ZoneSystem.instance.GetGroundHeight(p), ZoneSystem.instance.m_waterLevel);
         }
     }
 

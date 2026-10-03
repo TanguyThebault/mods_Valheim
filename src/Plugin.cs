@@ -21,6 +21,7 @@ namespace ThrowingAxe
         public const string ItemToken = "$item_axethrowing";
 
         internal static BepInEx.Logging.ManualLogSource Log;
+        internal static Plugin Instance;
         internal static ConfigEntry<float> MaxRange;
         internal static ConfigEntry<float> OutSpeed;
         internal static ConfigEntry<float> ReturnSpeed;
@@ -41,6 +42,7 @@ namespace ThrowingAxe
         private void Awake()
         {
             Log = Logger;
+            Instance = this;
             MaxRange = Config.Bind("Throw", "MaxRange", 20f, "Distance (m) before the axe turns back.");
             OutSpeed = Config.Bind("Throw", "OutSpeed", 30f, "Outbound speed (m/s).");
             ReturnSpeed = Config.Bind("Throw", "ReturnSpeed", 32f, "Return speed (m/s).");
@@ -68,6 +70,8 @@ namespace ThrowingAxe
             new Harmony(Guid).PatchAll();
             CommandManager.Instance.AddConsoleCommand(new ShowCommand());
             CommandManager.Instance.AddConsoleCommand(new ClearCommand());
+            CommandManager.Instance.AddConsoleCommand(new LabCommand());
+            CommandManager.Instance.AddConsoleCommand(new OverlayCommand());
             Log.LogInfo("Throwing Axe " + Version + " loaded");
         }
 
@@ -91,6 +95,16 @@ namespace ThrowingAxe
             _configStamp = stamp;
             Config.Reload();
             Log.LogInfo("Config reloaded");
+        }
+
+        private float _nextLabPoll;
+
+        private void LateUpdate()
+        {
+            if (Time.unscaledTime < _nextLabPoll || Look.PluginDir == null)
+                return;
+            _nextLabPoll = Time.unscaledTime + 1f;
+            Lab.Poll();
         }
 
         private void AddLocalization()

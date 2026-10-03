@@ -313,3 +313,31 @@ gros.
 - Correctif de la cape : TintCape teinte seulement la fourrure ; le matériau WolfCapeChain (métal) garde sa
   couleur. Les paramètres flottants des shaders (brillance, etc.) de chaque matériau sont écrits dans le log
   pour pouvoir vérifier. Correctifs queue et cape installés ; c'est Lekinox qui teste.
+
+## v0.11 : labo de modèles, overlay des créatures, vol des oiseaux plus souple
+- Labo (Lab.cs) : on dépose BepInEx/plugins/ThrowingAxe/lab/request.txt (« <prefab> [images] [tuile] » ou
+  « refit ») ; le jeu, même au menu principal et sans aucune entrée, rend <prefab>_bind.png (côté | face |
+  dessus) et un PNG par animation (ligne de côté, ligne de face, N images), avec les os en jaune, puis écrit
+  done.txt. Copie inerte : instanciée sous un parent inactif, MonoBehaviours détruits (ZDOMan est nul au
+  menu), LOD coupés, calque 31, caméra orthographique et lumière dédiées, positionnée à y = 9000. Commande
+  console ta_lab équivalente.
+  **Gotcha** : Unity skinne une seule fois par frame ; rendre plusieurs échantillons
+  (AnimationClip.SampleAnimation) dans la même frame montre toujours la même pose (les os bougent, pas le
+  maillage). Le rendu est donc une coroutine qui attend 2 frames par échantillon.
+- [MouseFit] Scale / Lift / Forward / Pitch (relus par « refit » ou au redémarrage). Valeurs actuelles :
+  1.15 / 0 / 0.05 / -12.
+- Diagnostic du mulot dans le labo : le squelette du lièvre a des pattes arrière immenses, se dresse en
+  alerte et pique du nez à la course.
+  Corrections : pattes du mulot liées seulement aux cuisses/épaules (plus de pattes étirées en baguettes
+  vers les pieds du lièvre), queue en 3 segments (Tail+Hips, Hips+Root, Root : elle traîne derrière au lieu
+  de pendre ou de se dresser), tête sur Neck+Spine2. Reste : tête basse à la course, torsion en alerte. Le
+  vrai remède serait un squelette plus proche d'un mulot (celui du loup, ou un recalage des os du lièvre :
+  pattes raccourcies et liaison sur une pose neutre).
+- Oiseaux : fini le plancher invisible. On regarde devant soi (sol devant et à mi-chemin, sur
+  ~0.9 x vitesse) et on relève le nez progressivement (60-240°/s selon l'urgence) dès que la trajectoire
+  projetée passe sous sol + MinClearance + 1.5 m. Les waypoints de croisière sont remontés au-dessus du
+  dégagement. Le recalage de position ne sert plus qu'en dernier recours (0.3 m). Pas encore vu en jeu.
+- Overlay (Overlay.cs) : ta_overlay [filtre|all|off] [portée=100], avec cadre, nom et distance à travers les
+  décors (OnGUI, projection des bounds des renderers), nos créatures en vert ; Character.GetAllCharacters() et
+  RandomFlyingBird.Instances. Pas encore vu en jeu.
+- Références ajoutées : assembly_guiutils (Localization), IMGUI, TextRendering, AnimationModule.

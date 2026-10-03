@@ -24,6 +24,9 @@ namespace ThrowingAxe
         private static ConfigEntry<int> s_maxSpawned;
         private static ConfigEntry<Vector3> s_earScale;
         private static ConfigEntry<Vector3> s_tailScale;
+        private static ConfigEntry<float> s_fitScale, s_fitLift, s_fitForward, s_fitPitch;
+        private static GameObject s_prefab, s_ragdoll;
+        private static ModelData s_model;
 
         public static void BindConfig(ConfigFile config)
         {
@@ -31,6 +34,10 @@ namespace ThrowingAxe
             s_meatChance = config.Bind("Mouse", "MeatChance", 15f, "Chance (%) that a mouse leaves meat (restart).");
             s_maxSpawned = config.Bind("Mouse", "MaxSpawned", 4, "Max mice around a player (restart).");
             s_earScale = config.Bind("Mouse", "EarScale", new Vector3(0.55f, 0.45f, 0.55f), "Scale of the ear bones (restart).");
+            s_fitScale = config.Bind("MouseFit", "Scale", 1f, "Size of the generated mouse on the hare skeleton (refit in the lab, or restart).");
+            s_fitLift = config.Bind("MouseFit", "Lift", 0f, "Raise (+) or lower (-) the mouse, in hare body lengths.");
+            s_fitForward = config.Bind("MouseFit", "Forward", 0f, "Move the mouse forward (+) or back (-), in hare body lengths.");
+            s_fitPitch = config.Bind("MouseFit", "Pitch", 0f, "Tilt the mouse nose up (-) or down (+), degrees.");
             s_tailScale = config.Bind("Mouse", "TailScale", new Vector3(0.5f, 3f, 0.5f), "Scale of the tail bone (restart).");
         }
 
@@ -131,6 +138,8 @@ namespace ThrowingAxe
             go.transform.localScale *= s_scale.Value;
             var mask = Look.Mask("mouse");
             var model = ModelData.Load("mouse");
+            s_prefab = go;
+            s_model = model;
             bool modelled = model != null && UseMouseModel(go, model);
             if (!modelled)
             {
@@ -152,6 +161,8 @@ namespace ThrowingAxe
                 {
                     if (!modelled || !UseMouseModel(ed.m_prefab, model))
                         Proportions(ed.m_prefab);
+                    else
+                        s_ragdoll = ed.m_prefab;
                 }
 
             var ai = go.GetComponent<AnimalAI>();
@@ -183,6 +194,18 @@ namespace ThrowingAxe
             Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Hare skeleton), meat " + s_meatChance.Value + "%");
         }
 
+        /// <summary>Re-applies the generated mouse with the current [MouseFit] values (new spawns use it).</summary>
+        internal static string Refit()
+        {
+            if (s_prefab == null || s_model == null)
+                return "mouse: nothing to refit";
+            bool ok = UseMouseModel(s_prefab, s_model);
+            if (s_ragdoll != null)
+                ok &= UseMouseModel(s_ragdoll, s_model);
+            return "mouse refit " + (ok ? "ok" : "failed") + " (scale " + s_fitScale.Value + ", lift " + s_fitLift.Value +
+                   ", forward " + s_fitForward.Value + ", pitch " + s_fitPitch.Value + ")";
+        }
+
         /// <summary>The generated mouse model (fal Trellis), skinned to the hare skeleton, with its own texture.</summary>
         private static bool UseMouseModel(GameObject go, ModelData model)
         {
@@ -191,7 +214,7 @@ namespace ThrowingAxe
                 return false;
             foreach (var smr in smrs)
             {
-                if (!Models.MouseOnHare(smr, model))
+                if (!Models.MouseOnHare(smr, model, s_fitScale.Value, s_fitLift.Value, s_fitForward.Value, s_fitPitch.Value))
                     return false;
                 Models.UseTexture(smr, model.Tex, go.name);
             }
