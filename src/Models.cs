@@ -64,6 +64,24 @@ namespace ThrowingAxe
     {
         // ------------------------------------------------------------ helpers
 
+        private static Texture2D s_flatNormal;
+
+        private static Texture2D FlatNormal
+        {
+            get
+            {
+                if (s_flatNormal == null)
+                {
+                    s_flatNormal = new Texture2D(4, 4, TextureFormat.RGBA32, false, true) { name = "flat_normal" };
+                    var px = new Color[16];
+                    for (int i = 0; i < px.Length; i++) px[i] = new Color(0.5f, 0.5f, 1f, 0.5f);
+                    s_flatNormal.SetPixels(px);
+                    s_flatNormal.Apply(false, true);
+                }
+                return s_flatNormal;
+            }
+        }
+
         public static void UseTexture(Renderer r, Texture2D tex, string owner)
         {
             var mats = r.sharedMaterials;
@@ -74,7 +92,9 @@ namespace ThrowingAxe
                 var m = new Material(mats[i]) { name = mats[i].name + "_" + owner };
                 if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", tex);
                 if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white);
-                if (m.HasProperty("_BumpMap")) m.SetTexture("_BumpMap", null);       // the base normal map has other UVs
+                // The base normal map has other UVs. Null would bind a white texture (broken normals, glare and
+                // bloom), so use a flat normal: works for both RGB and DXT5nm (AG) unpacking.
+                if (m.HasProperty("_BumpMap")) m.SetTexture("_BumpMap", FlatNormal);
                 if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", Color.black);
                 mats[i] = m;
             }

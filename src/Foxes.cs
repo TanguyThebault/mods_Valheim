@@ -177,6 +177,7 @@ namespace ThrowingAxe
             foreach (var c in go.GetComponents<Procreation>()) Object.DestroyImmediate(c);
 
             var character = go.GetComponent<Character>();
+            character.m_name = config.Name;   // shown above the health bar
             character.m_health = 20f;
             character.m_runSpeed = 9f;      // a hair slower than a rabbit (9.45), which also zig-zags
             character.m_speed = 3f;

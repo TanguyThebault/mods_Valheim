@@ -139,6 +139,7 @@ namespace ThrowingAxe
             }
 
             var character = go.GetComponent<Character>();
+            character.m_name = config.Name;   // shown above the health bar
             character.m_health = 3f;
             character.m_runSpeed = 6.5f;
             character.m_speed = 1.6f;

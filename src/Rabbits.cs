@@ -283,6 +283,7 @@ namespace ThrowingAxe
             Look.Paint(go, mask, s_furTint.Value);
 
             var character = go.GetComponent<Character>();
+            character.m_name = config.Name;   // shown above the health bar
             Look.OwnRagdolls(character.m_deathEffects, CreaturePrefab, mask, s_furTint.Value);
             float speed = s_speedFactor.Value;
             character.m_health = 10f;
