@@ -408,3 +408,26 @@ gros.
   Solution : Trellis 2 avec --faces 5000 --texture 1024, d'où 4 824 faces propres (couchée le long de x,
   tournée de 90° dans build_models.py). Coût fal de cette passe : environ 0.15 $ (2 images, 2 Trellis 2).
 - Vérifié au labo : baleine lisse et texturée qui ondule ; onde de l'orque sans repli.
+
+## v0.14 : cétacés retravaillés, souffle de l'évent
+- Orque : le « bug » entouré sur la capture de Lekinox (lambeau sous l'arrière du ventre) venait du modèle
+  trellis v1 (seconde pectorale mal reconstruite), pas du squelette. Nouveau concept flux (graine 31,
+  symétrique, vue 3/4 surélevée) puis Trellis 2 --faces 5000 : 4 960 faces, déjà orientée +z.
+- Baleine : couleurs distinctes de l'orque grâce à RECOLOR["whale"] dans build_models.py (le bleu-noir devient
+  un gris ardoise plus clair et chaud, avec des marbrures douces ; le bruit, d'abord agrandi par blocs, a
+  laissé des carrés, d'où un agrandissement bicubique ; les blancs sont gardés).
+- Animation moins raide (ProcSwimmer réécrit), en couches : onde verticale (exposant 1.25-1.45 pour que plus
+  de corps participe), ondulation horizontale lente, flexion du corps dans les virages (taux de lacet
+  mesuré), roulis à la racine, caudale plus libre (baleine x1.9), cambrure tête haute pendant le souffle.
+  Trajectoire : SeaSwimmer serpente autour du cap (deux sinus lents, ±25-35°).
+- Spawns plus rares : un test toutes les 15 min, baleine 10 %, orque 12 % (groupes de 2-3) ; réglables
+  [Whale]/[Orca] SpawnChance.
+- Évent : enfant « Blowhole » sur Spine1 (sommet de la tête, point le plus haut à z 0.7-0.88), ParticleSystem
+  en rafales (cône vers le haut, espace monde, matériau de vapeur pris à fx_FoodSteam de CookedDeerMeat,
+  alpha qui décroît, taille qui grandit, vitesse limitée/amortie). Un premier réglage (gravité 0.45, vie
+  2.4 s) faisait retomber la brume sous l'animal ; désormais gravité 0.08, vie 1-1.8 s, limite à 0.5 x la
+  vitesse, amortissement 0.18. Son : tools/synth_sea.py (souffle grave de ~2 s avec grondement pour la
+  baleine, « pfff » de ~0.7 s pour l'orque), 3 variantes chacun. Déclenché par le propriétaire quand
+  l'animal remonte (y > eau - 1.3) puis RPC WL_Spout à tout le monde (particules, son, cambrure).
+- Labo : planche <prefab>_spout.png (simulation des particules dans le temps).
+- Coût fal de cette passe : environ 0.06 $ (2 images + 1 Trellis 2).

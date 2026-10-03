@@ -391,17 +391,23 @@ namespace Wildlife
     }
 
     /// <summary>
-    /// Procedural swimming for whales and orcas: a travelling wave down the spine (vertical, like cetaceans),
-    /// growing toward the fluke, plus slow pectoral fin strokes. Speed from the actual movement.
+    /// Procedural swimming for whales and orcas. Each spine joint only adds its share of the body curve (joint
+    /// rotations add up down the chain). Layers: the main vertical stroke (cetaceans swim with up-and-down
+    /// flukes), a slower horizontal undulation, the body bending into turns, a roll when turning, a freer fluke,
+    /// pectoral strokes, and a head-up arch while blowing at the surface.
     /// </summary>
     public class ProcSwimmer : MonoBehaviour, IProcAnimated
     {
-        public float Amplitude = 9f;     // degrees at the fluke
-        public float BaseFrequency = 0.35f;
+        public float Amplitude = 14f;          // total vertical bend at the tail, degrees
+        public float Horizontal = 6f;          // total horizontal bend at the tail, degrees
+        public float BaseFrequency = 0.3f;
+        public float Exponent = 1.4f;          // how much of the body joins the stroke (lower = more)
+        public float WaveNumber = 2.2f;        // phase lag head -> tail
+        public float FlukeBoost = 1.4f;
         private Transform[] _spine;
         private Transform _finL, _finR, _fluke;
         private Vector3 _lastPos;
-        private float _speed, _phase, _time;
+        private float _lastYaw, _yawRate, _speed, _phase, _time, _spout;
         private bool _lab;
 
         public float[] LabSpeeds => new[] { 1f, 6f };
@@ -422,12 +428,20 @@ namespace Wildlife
             bones.TryGetValue("FinR", out _finR);
             bones.TryGetValue("Fluke", out _fluke);
             _lastPos = transform.position;
+            _lastYaw = transform.eulerAngles.y;
+        }
+
+        /// <summary>Head-up arch for a couple of seconds while the animal blows.</summary>
+        public void Spout()
+        {
+            _spout = 2.5f;
         }
 
         public void LabPose(float speed, float time)
         {
             _lab = true;
             _speed = speed;
+            _yawRate = speed > 3f ? 12f : 0f;   // show the turn bend in the fast sheet
             _phase = 0f;
             _time = 0f;
             const float step = 1f / 60f;
@@ -437,37 +451,56 @@ namespace Wildlife
 
         private void LateUpdate()
         {
-            if (_spine == null || _lab)
+            if (_spine == null || _spine.Length == 0 || _lab)
                 return;
             float dt = Mathf.Max(Time.deltaTime, 1e-4f);
             Vector3 v = (transform.position - _lastPos) / dt;
             _lastPos = transform.position;
             float sp = v.magnitude > 40f ? 0f : v.magnitude;
             _speed = Mathf.Lerp(_speed, sp, 1f - Mathf.Exp(-dt * 3f));
+            float yaw = transform.eulerAngles.y;
+            float rate = Mathf.DeltaAngle(_lastYaw, yaw) / dt;
+            _lastYaw = yaw;
+            _yawRate = Mathf.Lerp(_yawRate, Mathf.Clamp(rate, -60f, 60f), 1f - Mathf.Exp(-dt * 2f));
             Animate(dt);
         }
 
         private void Animate(float dt)
         {
             _time += dt;
-            float freq = BaseFrequency + _speed * 0.06f;
+            _spout = Mathf.Max(0f, _spout - dt);
+            float calm = _spout > 0f ? 0.35f : 1f;
+            float freq = BaseFrequency + _speed * 0.05f;
             _phase += dt * freq * Mathf.PI * 2f;
-            // Amplitude = total bend reached at the tail. Each joint only adds its share (child rotations add up
-            // down the chain; giving every joint the full curve made the tail fold over).
-            float amp = Amplitude * (0.5f + Mathf.Clamp01(_speed / 6f));
-            float prev = 0f;
-            for (int i = 0; i < _spine.Length; i++)
+            float amp = Amplitude * (0.55f + 0.45f * Mathf.Clamp01(_speed / 6f)) * calm;
+            float side = Horizontal * calm;
+            float turn = Mathf.Clamp(_yawRate * 0.5f, -22f, 22f);         // bend into the turn
+            float roll = Mathf.Clamp(-_yawRate * 0.35f, -18f, 18f);       // bank into the turn
+            float arch = _spout > 0f ? Mathf.Sin(Mathf.Clamp01((2.5f - _spout) / 2.5f) * Mathf.PI) : 0f;
+
+            float prevV = 0f, prevH = 0f;
+            int n = _spine.Length;
+            for (int i = 0; i < n; i++)
             {
-                float k = (float)i / (_spine.Length - 1);          // 0 head .. 1 tail
-                float bend = amp * Mathf.Pow(k, 1.8f) * Mathf.Sin(_phase - k * 2.4f);
-                _spine[i].localRotation = Quaternion.Euler(bend - prev, 0f, 0f);
-                prev = bend;
+                float k = (float)i / (n - 1);                               // 0 head .. 1 tail
+                float shape = Mathf.Pow(k, Exponent);
+                float v = amp * shape * Mathf.Sin(_phase - k * WaveNumber) - arch * 8f * (1f - k) + arch * 6f * k;
+                float h = side * Mathf.Pow(k, 1.3f) * Mathf.Sin(_phase * 0.5f - k * 1.6f) + turn * k;
+                var rot = Quaternion.Euler(v - prevV, h - prevH, i == 0 ? roll : 0f);
+                _spine[i].localRotation = rot;
+                prevV = v;
+                prevH = h;
             }
             if (_fluke != null)
-                _fluke.localRotation = Quaternion.Euler(amp * 1.3f * Mathf.Sin(_phase - 2.9f) - prev, 0f, 0f);
+            {
+                float fv = amp * FlukeBoost * Mathf.Sin(_phase - WaveNumber - 0.5f);
+                float fh = side * 0.8f * Mathf.Sin(_phase * 0.5f - 2f) + turn * 0.6f;
+                _fluke.localRotation = Quaternion.Euler(fv - prevV * 0.3f, fh, 0f);
+            }
             float fin = Mathf.Sin(_phase * 0.5f) * 5f;
-            if (_finL != null) _finL.localRotation = Quaternion.Euler(0f, 0f, fin - 3f);
-            if (_finR != null) _finR.localRotation = Quaternion.Euler(0f, 0f, -fin + 3f);
+            float steer = turn * 0.4f;
+            if (_finL != null) _finL.localRotation = Quaternion.Euler(0f, 0f, fin - 3f + steer);
+            if (_finR != null) _finR.localRotation = Quaternion.Euler(0f, 0f, -fin + 3f + steer);
         }
     }
 }

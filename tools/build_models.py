@@ -22,7 +22,7 @@ MODELS = {
     "mouse": ("mouse_3d.glb", 0),
     # Trellis 2 with a 5000-face target (decimating its 94k-face output left shards on the back)
     "whale": ("whale3_3d.glb", 90),   # generated lying along x, head towards -x
-    "orca": ("orca_3d.glb", 90),     # generated lying along x, head towards -x
+    "orca": ("orca3_3d.glb", 0),      # Trellis 2, 5000 faces (the first trellis orca had a stray flap under the belly)
 }
 
 
@@ -37,6 +37,28 @@ def load(path):
         m.apply_transform(transform)
         parts.append(m)
     return parts[0] if len(parts) == 1 else trimesh.util.concatenate(parts)
+
+
+def slate(img):
+    """Whale recolour: the generated navy-black becomes a lighter, warm slate grey with soft mottling (so it
+    reads differently from the black-and-white orca); the white belly and fins stay."""
+    a = np.asarray(img, dtype=np.float32) / 255.0
+    lum = a @ np.array([0.3, 0.59, 0.11], dtype=np.float32)
+    dark = np.array([0.24, 0.25, 0.26], dtype=np.float32)
+    mid = np.array([0.50, 0.50, 0.48], dtype=np.float32)
+    t = np.clip(lum / 0.55, 0, 1)[..., None]
+    grey = dark + (mid - dark) * t
+    rng = np.random.default_rng(7)
+    small = rng.normal(0, 1, (a.shape[0] // 24 + 2, a.shape[1] // 24 + 2)).astype(np.float32)
+    smooth = Image.fromarray(((small - small.min()) / (np.ptp(small) + 1e-6) * 255).astype("uint8"))
+    noise = np.asarray(smooth.resize((a.shape[1], a.shape[0]), Image.BICUBIC), dtype=np.float32) / 127.5 - 1.0
+    grey = grey * (1 + 0.06 * noise[..., None])
+    w = np.clip((lum - 0.5) / 0.2, 0, 1)[..., None]          # keep whites
+    out = grey * (1 - w) + a * w
+    return Image.fromarray((np.clip(out, 0, 1) * 255).astype("uint8"))
+
+
+RECOLOR = {"whale": slate}
 
 
 def texture_of(mesh):
@@ -68,7 +90,10 @@ def convert(src, out_dir, name, yaw=0):
         f.write(nrm.tobytes())
         f.write(uv.tobytes())
         f.write(faces.astype("<i4").tobytes())
-    texture_of(mesh).save(out_dir / f"{name}.png")
+    tex = texture_of(mesh)
+    if name in RECOLOR:
+        tex = RECOLOR[name](tex)
+    tex.save(out_dir / f"{name}.png")
     lo, hi = pos.min(0), pos.max(0)
     print(f"{name}: {len(pos)} verts, {len(faces)} tris, bounds {lo.round(3)} .. {hi.round(3)}")
 

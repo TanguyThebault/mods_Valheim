@@ -172,6 +172,26 @@ namespace Wildlife
                     index.AppendLine("procedural at " + speed + " m/s: " + file);
                 }
             }
+            // blowhole spout: simulate the particles through time (they were switched off by Spawn)
+            var holes = go.GetComponentsInChildren<ParticleSystem>(true).Where(ps => ps.name == "Blowhole").ToArray();
+            if (holes.Length > 0)
+            {
+                foreach (var h in holes) h.gameObject.SetActive(true);
+                float keep = cam.orthographicSize;
+                cam.orthographicSize = keep * 1.5f;
+                var sheet = new Texture2D(tile * frames, tile * 2, TextureFormat.RGB24, false);
+                for (int f = 0; f < frames; f++)
+                {
+                    foreach (var h in holes) h.Simulate(0.1f + f * 0.35f, true, true);
+                    yield return null;
+                    yield return null;
+                    View(right, up); Shot(sheet, f, 0);
+                    View(fwd, up); Shot(sheet, f, 1);
+                }
+                cam.orthographicSize = keep;
+                Save(sheet, prefabName + "_spout.png");
+                index.AppendLine("spout (0.1 s + 0.35 s per frame): " + prefabName + "_spout.png");
+            }
             File.WriteAllText(Path.Combine(Dir, prefabName + "_index.txt"), index.ToString());
 
             cam.targetTexture = null;
