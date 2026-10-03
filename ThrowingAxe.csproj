@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>ThrowingAxe</AssemblyName>
+    <RootNamespace>ThrowingAxe</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Override on the command line: dotnet build -p:ValheimDir="D:\Games\Valheim" -->
+    <ValheimDir Condition="'$(ValheimDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimDir>
+    <Managed>$(ValheimDir)\valheim_Data\Managed</Managed>
+    <Vendor>$(MSBuildProjectDirectory)\_vendor</Vendor>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="_vendor\**" />
+  </ItemGroup>
+
+  <ItemDefinitionGroup>
+    <Reference><Private>false</Private></Reference>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <Reference Include="assembly_valheim"><HintPath>$(Managed)\assembly_valheim.dll</HintPath></Reference>
+    <Reference Include="assembly_utils"><HintPath>$(Managed)\assembly_utils.dll</HintPath></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(Managed)\UnityEngine.CoreModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(Managed)\UnityEngine.PhysicsModule.dll</HintPath></Reference>
+    <Reference Include="BepInEx"><HintPath>$(Vendor)\bepinex\BepInExPack_Valheim\BepInEx\core\BepInEx.dll</HintPath></Reference>
+    <Reference Include="0Harmony"><HintPath>$(Vendor)\bepinex\BepInExPack_Valheim\BepInEx\core\0Harmony.dll</HintPath></Reference>
+    <Reference Include="Jotunn"><HintPath>$(Vendor)\jotunn\plugins\Jotunn.dll</HintPath></Reference>
+  </ItemGroup>
+
+</Project>
