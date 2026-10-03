@@ -366,3 +366,31 @@ gros.
     est remplacé par un prefix qui, quand un joueur menace (hystérésis 10/16 m), exécute BaseAI.UpdateAI en
     appel non virtuel (AccessTools.MethodDelegate virtualCall=false) puis Flee, et saute la décision de
     MonsterAI. Errance plus calme (8 s / 10 m), fuite rectiligne (20 m, 25°, 2.5 s).
+
+## v0.13 : squelettes sur mesure (mulot) et cétacés (baleine, orque)
+- ProcRig.cs : squelette construit depuis la géométrie du modèle généré (articulation = centroïde des
+  sommets d'une région du corps), skinning sur nos os (2 os les plus proches par distance au segment,
+  restreints à la région), bindposes = translation inverse, SkinnedMeshRenderer sous un enfant
+  « Visual_rig ». Les animateurs retrouvent leurs os par leur nom dans Awake (les dictionnaires ne sont pas
+  sérialisés par Instantiate).
+- Mulot : le Hare reste dessous (IA, physique, réseau, Animator) mais ses renderers et son LODGroup sont
+  désactivés. 27 os : Root, Hips, Chest, Neck, Head, Nose, Ear/EarTip L/R, 4 pattes x 3 (épaule/hanche,
+  genou, pied), queue x 5. ProcQuadruped : vitesse mesurée sur le déplacement réel (marche aussi pour les
+  autres clients) ; trot (paires diagonales) sous 3.5 m/s, galop bondissant au-dessus (paire avant puis
+  arrière, flexion du dos), balancement vertical, tête stable, reniflements et regard alentour à l'arrêt,
+  frémissements d'oreilles, queue en retard par segment. Plus de ragdoll de lièvre : un cadavre maison
+  (maillage couché sur le flanc, SelfDestruct 12 s) ; le butin tombe tout de suite. [MouseRig] Enabled /
+  Length (0.55 m à l'échelle 1, avant l'échelle de la créature 0.44).
+- Baleine (OceanWhale, 14 m) et orque (OceanOrca, 7 m) : modèles fal (flux schnell + trellis, environ 0.05 $),
+  orque réorientée de 90° dans build_models.py (générée le long de x). 13 os : 8 vertèbres de la tête à la
+  queue, Fluke, nageoires pectorales. ProcSwimmer : onde verticale qui grandit vers la queue (amplitude
+  baleine 10°, orque 15°), battement de nageoires. SeaSwimmer (piloté par le propriétaire, ZSyncTransform) :
+  croisière en profondeur entre des points assez profonds, demi-tour devant les hauts-fonds, remontée pour
+  respirer (baleine toutes les ~50 s, orque ~25 s), sauts hors de l'eau pour l'orque (balistique), jamais
+  hors de la mer. Spawn Océan : baleine seule (profondeur > 16 m, max 1), orques en groupes de 2 à 4
+  (> 9 m, max 3). Pas encore de points de vie.
+- Labo : garde les IProcAnimated et rend une planche par vitesse (<prefab>_proc_<vitesse>.png) ; ne cadre et
+  ne dessine que les renderers actifs (le lièvre caché sous le mulot faussait le cadrage).
+- Vérifié au labo : mulot à l'arrêt, au trot et au galop crédibles ; baleine et orque texturées qui ondulent.
+  Pas encore vu en monde ouvert : spawns marins, nage, mulot en mouvement réel, cadavre, renard
+  (faim, mulots, fuite), corbeaux vanilla, overlay, vol des oiseaux.

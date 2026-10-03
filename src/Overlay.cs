@@ -36,7 +36,7 @@ namespace Wildlife
         private static CreatureOverlay s_instance;
         private static readonly string[] OurPrefabs =
         {
-            Rabbits.CreaturePrefab, Foxes.CreaturePrefab, Mice.CreaturePrefab, Birds.SparrowPrefab, Birds.OwlPrefab,
+            Rabbits.CreaturePrefab, Foxes.CreaturePrefab, Mice.CreaturePrefab, Birds.SparrowPrefab, Birds.OwlPrefab, Sea.WhalePrefab, Sea.OrcaPrefab,
         };
 
         private string _filter = "";
@@ -69,6 +69,12 @@ namespace Wildlife
             foreach (var c in Character.GetAllCharacters())
                 if (c != null && !c.IsPlayer())
                     yield return new KeyValuePair<GameObject, string>(c.gameObject, Localization.instance.Localize(c.m_name));
+            foreach (var s in SeaSwimmerRegistry.All)
+                if (s != null)
+                {
+                    var h = s.GetComponent<HoverText>();
+                    yield return new KeyValuePair<GameObject, string>(s.gameObject, h != null ? Localization.instance.Localize(h.m_text) : s.name);
+                }
             foreach (var u in RandomFlyingBird.Instances)
                 if (u is RandomFlyingBird b && b != null)
                 {

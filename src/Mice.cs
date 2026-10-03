@@ -25,6 +25,8 @@ namespace Wildlife
         private static ConfigEntry<Vector3> s_earScale;
         private static ConfigEntry<Vector3> s_tailScale;
         private static ConfigEntry<float> s_fitScale, s_fitLift, s_fitForward, s_fitPitch;
+        private static ConfigEntry<float> s_rigSize;
+        private static ConfigEntry<bool> s_useRig;
         private static GameObject s_prefab, s_ragdoll;
         private static ModelData s_model;
 
@@ -34,6 +36,9 @@ namespace Wildlife
             s_meatChance = config.Bind("Mouse", "MeatChance", 15f, "Chance (%) that a mouse leaves meat (restart).");
             s_maxSpawned = config.Bind("Mouse", "MaxSpawned", 4, "Max mice around a player (restart).");
             s_earScale = config.Bind("Mouse", "EarScale", new Vector3(0.55f, 0.45f, 0.55f), "Scale of the ear bones (restart).");
+            s_useRig = config.Bind("MouseRig", "Enabled", true,
+                "Use our own mouse skeleton and procedural animation (off: the generated mouse on the hare skeleton) (restart).");
+            s_rigSize = config.Bind("MouseRig", "Length", 0.55f, "Mouse length nose to tail tip at creature scale 1, m (restart).");
             s_fitScale = config.Bind("MouseFit", "Scale", 1f, "Size of the generated mouse on the hare skeleton (refit in the lab, or restart).");
             s_fitLift = config.Bind("MouseFit", "Lift", 0f, "Raise (+) or lower (-) the mouse, in hare body lengths.");
             s_fitForward = config.Bind("MouseFit", "Forward", 0f, "Move the mouse forward (+) or back (-), in hare body lengths.");
@@ -140,7 +145,8 @@ namespace Wildlife
             var model = ModelData.Load("mouse");
             s_prefab = go;
             s_model = model;
-            bool modelled = model != null && UseMouseModel(go, model);
+            bool rigged = model != null && s_useRig.Value && UseMouseRig(go, model);
+            bool modelled = rigged || (model != null && UseMouseModel(go, model));
             if (!modelled)
             {
                 Proportions(go);
@@ -155,7 +161,10 @@ namespace Wildlife
             character.m_acceleration *= 2f;
             character.m_turnSpeed *= 2f;
             character.m_runTurnSpeed *= 2.2f;
-            Look.OwnRagdolls(character.m_deathEffects, CreaturePrefab, mask, MouseBrown);
+            if (rigged)
+                MouseCorpse(character, model);
+            else
+                Look.OwnRagdolls(character.m_deathEffects, CreaturePrefab, mask, MouseBrown);
             foreach (var ed in character.m_deathEffects.m_effectPrefabs)
                 if (ed?.m_prefab != null && ed.m_prefab.GetComponent<Ragdoll>() != null)
                 {
@@ -192,6 +201,62 @@ namespace Wildlife
             go.AddComponent<MouseTag>();
             CreatureManager.Instance.AddCreature(mouse);
             Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Hare skeleton), meat " + s_meatChance.Value + "%");
+        }
+
+        /// <summary>
+        /// Our own mouse: the hare (AI, physics, network, Animator) stays underneath but invisible; the visible
+        /// mouse is the generated model on a skeleton built from its own geometry, animated in code from its
+        /// actual movement (trot, bound, sniff, ears, tail).
+        /// </summary>
+        private static bool UseMouseRig(GameObject go, ModelData model)
+        {
+            var hareRenderers = go.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            if (hareRenderers.Length == 0)
+                return false;
+            var template = hareRenderers[0].sharedMaterial;
+            foreach (var r in hareRenderers) r.enabled = false;
+            foreach (var lod in go.GetComponentsInChildren<LODGroup>(true)) lod.enabled = false;
+            var bones = ProcRig.MouseBones(model, out var allowed);
+            var rig = ProcRig.Build(go, model, bones, allowed, template, s_rigSize.Value, "mouse_rig");
+            go.AddComponent<ProcQuadruped>().Init(rig);
+            Plugin.Log.LogInfo("Mouse: own skeleton, " + bones.Count + " bones");
+            return true;
+        }
+
+        /// <summary>No hare ragdoll for a rigged mouse: a small corpse of our own (loot then drops at once).</summary>
+        private static void MouseCorpse(Character character, ModelData model)
+        {
+            var kept = new List<EffectList.EffectData>();
+            foreach (var ed in character.m_deathEffects.m_effectPrefabs)
+                if (ed?.m_prefab != null && ed.m_prefab.GetComponent<Ragdoll>() == null)
+                    kept.Add(ed);
+            var corpse = PrefabManager.Instance.CreateEmptyPrefab(CreaturePrefab + "_corpse", false);
+            foreach (var c in corpse.GetComponents<Collider>()) Object.DestroyImmediate(c);
+            foreach (var c in corpse.GetComponents<MeshRenderer>()) Object.DestroyImmediate(c);
+            foreach (var c in corpse.GetComponents<MeshFilter>()) Object.DestroyImmediate(c);
+            var body = new GameObject("body");
+            body.transform.SetParent(corpse.transform, false);
+            float s = s_rigSize.Value / model.Bounds.size.z;
+            body.transform.localScale = Vector3.one * s;
+            body.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);   // lying on its side
+            var origin = new Vector3(model.Bounds.center.x, model.Bounds.center.y, model.Bounds.center.z);
+            var mesh = new Mesh { name = "mouse_corpse" };
+            var verts = new Vector3[model.Pos.Length];
+            for (int i = 0; i < verts.Length; i++) verts[i] = model.Pos[i] - origin;
+            mesh.vertices = verts;
+            mesh.normals = model.Nrm;
+            mesh.uv = model.Uv;
+            mesh.triangles = model.Idx;
+            mesh.RecalculateBounds();
+            body.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var template = character.GetComponentInChildren<SkinnedMeshRenderer>(true).sharedMaterial;
+            var mr = body.AddComponent<MeshRenderer>();
+            Models.UseTexture(mr, model.Tex, "mouse_corpse");
+            if (template != null && mr.sharedMaterial == null) mr.sharedMaterial = template;
+            corpse.AddComponent<SelfDestruct>().Seconds = 12f;
+            PrefabManager.Instance.AddPrefab(new CustomPrefab(corpse, false));
+            kept.Add(new EffectList.EffectData { m_prefab = corpse, m_enabled = true, m_inheritParentScale = true });
+            character.m_deathEffects = new EffectList { m_effectPrefabs = kept.ToArray() };
         }
 
         /// <summary>Re-applies the generated mouse with the current [MouseFit] values (new spawns use it).</summary>

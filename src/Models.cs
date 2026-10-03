@@ -66,6 +66,8 @@ namespace Wildlife
 
         private static Texture2D s_flatNormal;
 
+        internal static Texture2D FlatNormalMap => FlatNormal;
+
         private static Texture2D FlatNormal
         {
             get

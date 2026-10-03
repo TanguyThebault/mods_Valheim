@@ -15,7 +15,14 @@ import numpy as np
 import trimesh
 from PIL import Image
 
-MODELS = {"owl_perched": "owl_perched_3d.glb", "owl_flying": "owl_flying_3d.glb", "mouse": "mouse_3d.glb"}
+# name -> (glb, degrees around y applied first so the animal faces +z)
+MODELS = {
+    "owl_perched": ("owl_perched_3d.glb", 0),
+    "owl_flying": ("owl_flying_3d.glb", 0),
+    "mouse": ("mouse_3d.glb", 0),
+    "whale": ("whale_3d.glb", 0),
+    "orca": ("orca_3d.glb", 90),     # generated lying along x, head towards -x
+}
 
 
 def load(path):
@@ -40,10 +47,14 @@ def texture_of(mesh):
     return img
 
 
-def convert(src, out_dir, name):
+def convert(src, out_dir, name, yaw=0):
     mesh = load(src)
     pos = np.array(mesh.vertices, dtype=np.float32)
     nrm = np.array(mesh.vertex_normals, dtype=np.float32)
+    if yaw:
+        a = np.radians(yaw)
+        r = np.array([[np.cos(a), 0, np.sin(a)], [0, 1, 0], [-np.sin(a), 0, np.cos(a)]], dtype=np.float32)
+        pos, nrm = pos @ r.T, nrm @ r.T
     uv = np.array(mesh.visual.uv, dtype=np.float32)          # trimesh: OpenGL convention, like Unity
     faces = np.array(mesh.faces, dtype=np.int32)
     pos[:, 0] *= -1                                          # right-handed glTF -> left-handed Unity
@@ -64,5 +75,5 @@ def convert(src, out_dir, name):
 if __name__ == "__main__":
     src, out = Path(sys.argv[1]), Path(sys.argv[2])
     out.mkdir(parents=True, exist_ok=True)
-    for name, glb in MODELS.items():
-        convert(src / glb, out, name)
+    for name, (glb, yaw) in MODELS.items():
+        convert(src / glb, out, name, yaw)

@@ -39,6 +39,7 @@ namespace Wildlife
             Birds.BindConfig(Config);
             Foxes.BindConfig(Config);
             Mice.BindConfig(Config);
+            Sea.BindConfig(Config);
             _configStamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
             var loc = LocalizationManager.Instance.GetLocalization();
@@ -46,6 +47,7 @@ namespace Wildlife
             Birds.AddTranslations(loc);
             Foxes.AddTranslations(loc);
             Mice.AddTranslations(loc);
+            Sea.AddTranslations(loc);
 
             PrefabManager.OnVanillaPrefabsAvailable += RegisterAll;
             new Harmony(Guid).PatchAll();
@@ -94,6 +96,7 @@ namespace Wildlife
             Try("Foxes", Foxes.Register);
             Try("Mice", Mice.Register);
             Try("Birds", Birds.Register);
+            Try("Sea", Sea.Register);
         }
 
         private static void Try(string what, System.Action register)

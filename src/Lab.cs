@@ -154,6 +154,24 @@ namespace Wildlife
                 Save(sheet, file);
                 index.AppendLine(clip.name + "  " + clip.length.ToString("F2") + " s" + (clip.isLooping ? " loop" : "") + ": " + file);
             }
+            foreach (var proc in go.GetComponentsInChildren<IProcAnimated>(true))
+            {
+                foreach (float speed in proc.LabSpeeds)
+                {
+                    var sheet = new Texture2D(tile * frames, tile * 2, TextureFormat.RGB24, false);
+                    for (int f = 0; f < frames; f++)
+                    {
+                        proc.LabPose(speed, speed < 0.1f ? f * 0.6f : f / (float)frames * 1.2f);
+                        yield return null;
+                        yield return null;
+                        View(right, up); Shot(sheet, f, 0);
+                        View(fwd, up); Shot(sheet, f, 1);
+                    }
+                    string file = prefabName + "_proc_" + speed.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + ".png";
+                    Save(sheet, file);
+                    index.AppendLine("procedural at " + speed + " m/s: " + file);
+                }
+            }
             File.WriteAllText(Path.Combine(Dir, prefabName + "_index.txt"), index.ToString());
 
             cam.targetTexture = null;
@@ -172,7 +190,8 @@ namespace Wildlife
             var go = Object.Instantiate(prefab, holder.transform);
             for (int pass = 0; pass < 3; pass++)   // RequireComponent dependencies: retry
                 foreach (var mb in go.GetComponentsInChildren<MonoBehaviour>(true))
-                    try { Object.DestroyImmediate(mb); } catch { }
+                    if (!(mb is IProcAnimated))
+                        try { Object.DestroyImmediate(mb); } catch { }
             foreach (var col in go.GetComponentsInChildren<Collider>(true)) col.enabled = false;
             foreach (var rb in go.GetComponentsInChildren<Rigidbody>(true)) { rb.isKinematic = true; rb.useGravity = false; }
             foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true)) ps.gameObject.SetActive(false);
@@ -188,7 +207,8 @@ namespace Wildlife
 
         private static Bounds Bounds(GameObject go)
         {
-            var rs = go.GetComponentsInChildren<Renderer>().Where(r => !(r is ParticleSystemRenderer) && !(r is LineRenderer)).ToArray();
+            // only what is visible: a creature can hide its base model under its own rig
+            var rs = go.GetComponentsInChildren<Renderer>().Where(r => r.enabled && !(r is ParticleSystemRenderer) && !(r is LineRenderer)).ToArray();
             if (rs.Length == 0)
                 return new Bounds(go.transform.position, Vector3.one);
             var b = rs[0].bounds;
@@ -216,7 +236,7 @@ namespace Wildlife
                 return list;
             var mat = new Material(shader) { color = new Color(1f, 0.9f, 0.1f) };
             float width = Mathf.Max(Bounds(go).size.magnitude * 0.006f, 0.002f);
-            foreach (var smr in go.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            foreach (var smr in go.GetComponentsInChildren<SkinnedMeshRenderer>(true).Where(r => r.enabled))
                 foreach (var bone in smr.bones)
                 {
                     if (bone == null || bone.childCount == 0)
