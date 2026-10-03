@@ -105,3 +105,16 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
 - Patch Harmony AnimalAI.SetAlerted (postfix, alert=false, lapins seulement grâce à RabbitTag) :
   m_spawnPoint = position actuelle, écrit aussi dans la ZDO (ZDOVars.s_spawnPoint) si on en est
   propriétaire. Le lapin s'installe là où sa fuite s'est arrêtée.
+
+## v0.4 : réparation, tapis, intégration de la hache
+- Réparation (InventoryGui.CanRepair) : il faut une recette trouvée par ObjectDB.GetRecipe (comparaison sur
+  m_shared.m_name, **sans tenir compte de m_enabled**) dont m_craftingStation ou m_repairStation correspond au
+  poste. Hache : Enabled = CraftableAtForge (false par défaut), CraftingStation et RepairStation = forge, donc
+  pas fabricable mais réparable à la forge.
+- Loot : postfix sur Container.AddDefaultItems (appelé une seule fois par coffre, quand il est rempli). Si le
+  prefab est TreasureChest_sunkencrypt, tirage Random < SunkenCryptChestChance (0.02) et la hache est ajoutée
+  avec sa durabilité max. Choix : Cryptes englouties (Marais), même palier que les dégâts d'AxeIron.
+  Warning au chargement si le prefab du coffre est introuvable.
+- Tapis rug_rabbit : CustomPiece clone de rug_deer, marteau, catégorie Mobilier, établi, 3 MeadowRabbitHide,
+  échelle 0.6 x 1 x 0.6, teinte claire, icône rendue.
+- Gotcha build : référencer UnityEngine.AssetBundleModule (signatures de CustomPiece).

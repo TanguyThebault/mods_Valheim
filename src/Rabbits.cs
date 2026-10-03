@@ -54,6 +54,8 @@ namespace ThrowingAxe
                 { "item_rabbitmeat_desc", "Lean meat from a meadow rabbit. Better cooked." },
                 { "item_rabbitmeat_cooked", "Cooked rabbit" },
                 { "item_rabbitmeat_cooked_desc", "Spit-roasted rabbit. Light, but it keeps you on your feet." },
+                { "piece_rug_rabbit", "Small rabbit-fur rug" },
+                { "piece_rug_rabbit_desc", "Soft under bare feet by the fire." },
             });
             loc.AddTranslation("French", new Dictionary<string, string>
             {
@@ -64,6 +66,8 @@ namespace ThrowingAxe
                 { "item_rabbitmeat_desc", "Une viande maigre de lapin des prairies. Meilleure cuite." },
                 { "item_rabbitmeat_cooked", "Lapin rôti" },
                 { "item_rabbitmeat_cooked_desc", "Du lapin rôti à la broche. Léger, mais il donne des jambes." },
+                { "piece_rug_rabbit", "Petit tapis en peau de lapin" },
+                { "piece_rug_rabbit_desc", "Tout doux sous les pieds, au coin du feu." },
             });
         }
 
@@ -73,9 +77,11 @@ namespace ThrowingAxe
             Dump("DeerHide");
             Dump("DeerMeat");
             Dump("CookedDeerMeat");
+            Dump("rug_deer");
 
             RegisterItems();
             RegisterCreature();
+            RegisterRug();
         }
 
         // ---------------------------------------------------------------- items
@@ -146,6 +152,37 @@ namespace ThrowingAxe
         }
 
         // ------------------------------------------------------------- creature
+
+        // ----------------------------------------------------------------- rug
+
+        public const string RugPrefab = "rug_rabbit";
+
+        /// <summary>A smaller, paler copy of the vanilla deer-hide rug, built with the hammer next to a workbench.</summary>
+        private static void RegisterRug()
+        {
+            var rug = new CustomPiece(RugPrefab, "rug_deer", new PieceConfig
+            {
+                Name = "$piece_rug_rabbit",
+                Description = "$piece_rug_rabbit_desc",
+                PieceTable = PieceTables.Hammer,
+                Category = PieceCategories.Furniture,
+                CraftingStation = CraftingStations.Workbench,
+                Requirements = new[] { new RequirementConfig(HidePrefab, 3, 0, true) },
+            });
+            rug.PiecePrefab.transform.localScale = Vector3.Scale(rug.PiecePrefab.transform.localScale, new Vector3(0.6f, 1f, 0.6f));
+            Tint(rug.PiecePrefab, new Color(0.85f, 0.75f, 0.62f, 1f));
+            try
+            {
+                var icon = RenderManager.Instance.Render(rug.PiecePrefab, RenderManager.IsometricRotation);
+                if (icon != null)
+                    rug.Piece.m_icon = icon;
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Rug icon render failed: " + e.Message);
+            }
+            PieceManager.Instance.AddPiece(rug);
+        }
 
         private static void RegisterCreature()
         {

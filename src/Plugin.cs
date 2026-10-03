@@ -29,6 +29,8 @@ namespace ThrowingAxe
         internal static ConfigEntry<float> CurveWidth;
         internal static ConfigEntry<float> CurveSide;
         internal static ConfigEntry<Vector3> VisualTilt;
+        internal static ConfigEntry<bool> Craftable;
+        internal static ConfigEntry<float> CryptChestChance;
 
         private System.DateTime _configStamp;
         private float _nextConfigCheck;
@@ -46,6 +48,10 @@ namespace ThrowingAxe
             CurveWidth = Config.Bind("Throw", "CurveWidth", 0.3f,
                 "Half-width of the elliptical path as a fraction of its length (0 = straight out and back).");
             CurveSide = Config.Bind("Throw", "CurveSide", 1f, "1 = goes out on the right and comes back on the left, -1 = the opposite.");
+            Craftable = Config.Bind("Loot", "CraftableAtForge", false,
+                "Let the axe be crafted at the forge (restart). Off: it only comes from Sunken Crypt chests. Repair at the forge works either way.");
+            CryptChestChance = Config.Bind("Loot", "SunkenCryptChestChance", 0.02f,
+                "Chance (0-1) that a Sunken Crypt chest holds the axe, rolled once when the chest is first filled.");
             VisualTilt = Config.Bind("Visual", "Tilt", Vector3.zero,
                 "Extra rotation (degrees) applied to the flat-lying axe model, if it doesn't look right.");
             _configStamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
@@ -103,7 +109,10 @@ namespace ThrowingAxe
             {
                 Name = ItemToken,
                 Description = "$item_axethrowing_desc",
+                // A disabled recipe still counts for repair: ObjectDB.GetRecipe ignores m_enabled.
+                Enabled = Craftable.Value,
                 CraftingStation = "forge",
+                RepairStation = "forge",
                 MinStationLevel = 1,
                 Requirements = new[]
                 {
@@ -132,6 +141,8 @@ namespace ThrowingAxe
 
             try
             {
+                if (PrefabManager.Cache.GetPrefab<Container>(SunkenCryptLoot.ChestPrefab) == null)
+                    Log.LogWarning("Chest prefab " + SunkenCryptLoot.ChestPrefab + " not found: the axe won't appear as loot");
                 Rabbits.Register();
             }
             catch (System.Exception e)
@@ -154,6 +165,33 @@ namespace ThrowingAxe
                 return true;
             __result = false;
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Very rare loot: Sunken Crypt chests (Swamp, iron tier, like the axe's damage) roll once, when they are
+    /// first filled, for a chance to hold the axe. Dungeon chests fill on the owner only, once per chest.
+    /// </summary>
+    [HarmonyPatch(typeof(Container), "AddDefaultItems")]
+    internal static class SunkenCryptLoot
+    {
+        public const string ChestPrefab = "TreasureChest_sunkencrypt";
+
+        private static void Postfix(Container __instance)
+        {
+            if (__instance.gameObject.name.Replace("(Clone)", "").Trim() != ChestPrefab)
+                return;
+            if (Random.value >= Plugin.CryptChestChance.Value)
+                return;
+            var prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(Plugin.ItemPrefab) : null;
+            if (prefab == null)
+                return;
+            var item = prefab.GetComponent<ItemDrop>().m_itemData.Clone();
+            item.m_dropPrefab = prefab;
+            item.m_stack = 1;
+            item.m_durability = item.GetMaxDurability();
+            __instance.GetInventory().AddItem(item);
+            Plugin.Log.LogInfo("Throwing axe placed in a Sunken Crypt chest at " + __instance.transform.position);
         }
     }
 }
