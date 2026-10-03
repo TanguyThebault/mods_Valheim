@@ -194,3 +194,37 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
 - Coiffe et cape : armure 0, pas d'améliorations, résistances et set vidés. Chacune a son SE_Stats (deux
   objets distincts) : régén. d'endurance x1.1, Unarmed +10 niveaux, dégâts à main nue x1.1 (cumulables).
   Établi : coiffe 3 peaux + 2 chutes de cuir, cape 5 peaux + 2 chutes.
+
+## v0.8 : chaque créature a ses propres pièces, glapissements, corbeaux de la Forêt Noire
+Retours : moineaux qui volent dans le sol ; coiffe à retirer ; le renard hurle comme un loup et enchaîne les
+morsures ; renard un peu plus gros ; « des modèles différents, pas des modifications a posteriori » (à la mort
+d'un renard, c'est le ragdoll du loup qui apparaît) ; cape +1 armure ; lapin plus petit ; corbeaux qui croassent
+dans la Forêt Noire.
+- **Cause du ragdoll** : Character.OnDeath crée m_deathEffects, qui contient un prefab Ragdoll séparé
+  (Wolf_Ragdoll, Hare_ragdoll) resté vanilla, gris et à taille réelle. Look.OwnRagdolls le clone, le peint et
+  force m_inheritParentScale (EffectList.Create recopie alors le localScale de la créature mourante).
+- Look.cs (commun) : Paint(go, mask), qui clone chaque matériau et applique la texture masque x ombrage ;
+  OwnRagdolls ; MakeSfx, qui clone un prefab ZSFX vanilla en remplaçant m_audioClips par nos clips ;
+  Voice(list, sfx), qui remplace les sons d'une EffectList en gardant les autres effets ; LoadWav.
+- tools/paint_masks.py remplace paint_sparrow_mask.py : un masque par créature, peint dans l'UV du modèle de
+  base d'après sa géométrie. Orientations : Crow posé (haut y, bec -z), Wolf (haut x, tête -z, côtés y),
+  Hare (haut z, tête +y, côtés x). Renard : roux, chaussettes noires, poitrail, gorge et bout de queue blancs,
+  pointes d'oreilles et truffe noires. Lapin : gris-brun, ventre crème, queue blanche, pointes d'oreilles
+  sombres. Aperçus vérifiés. L'export UnityPy ignore les bundles dont les maillages sont externes
+  (FileNotFoundError).
+- Glapissements : tools/synth_fox.py (fondamentale de 500-1200 Hz glissante, harmoniques, 2 formants, peu de
+  souffle ; un premier essai trop bruité a été corrigé après lecture du spectrogramme). call x4 pour le cri
+  au calme et l'alerte (BaseAI.m_idleSound toutes les 25 s, chance 0.3), hurt x2, attack x2 (caquètement),
+  death x1.
+- Morsure unique : le loup a plusieurs attaques et enchaîne en combo. On garde un seul item d'attaque (le
+  premier sans chaîne), avec m_attackChainLevels 1 et m_aiAttackInterval 2.5 s. Dégâts toujours ramenés à 8.
+- Renard échelle 0.6, lapin 0.68 (les deux aussi modifiés dans le .cfg), cape de renard armure 1.
+- Coiffe retirée (code, recette, traductions, section [FoxHeaddress] du .cfg).
+- Oiseaux (Birds.cs remplace Sparrows.cs) : composant PerchBird pour les patchs perchoir et altitude.
+  Postfix sur RandomFlyingBird.CustomFixedUpdate : en vol, y >= max(sol, eau) + MinClearance (2 m, réglable à
+  chaud), avec une remontée douce, sauf dans les 4 derniers mètres (horizontaux) avant un perchoir.
+  m_minAlt 3. Le nuage de plumes de mort du moineau est cloné et recoloré en brun.
+- Corbeau BlackForestCrow : clone de Crow, croassements vanilla (m_randomNoise toutes les 6-14 s), plumes
+  gardées, perchoir uniquement, Forêt Noire, de jour, max 3.
+- Au premier SpawnSystem.Awake, le log liste les spawners vanilla de la Forêt Noire, pour vérifier la liste
+  des créatures.

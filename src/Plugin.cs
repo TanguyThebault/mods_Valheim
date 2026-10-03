@@ -56,8 +56,9 @@ namespace ThrowingAxe
                 "Extra rotation (degrees) applied to the flat-lying axe model, if it doesn't look right.");
             _configStamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
+            Look.PluginDir = System.IO.Path.GetDirectoryName(Info.Location);
             Rabbits.BindConfig(Config);
-            Sparrows.BindConfig(Config);
+            Birds.BindConfig(Config);
             Foxes.BindConfig(Config);
             AddLocalization();
             PrefabManager.OnVanillaPrefabsAvailable += CreateItem;
@@ -83,7 +84,7 @@ namespace ThrowingAxe
         {
             var loc = LocalizationManager.Instance.GetLocalization();
             Rabbits.AddTranslations(loc);
-            Sparrows.AddTranslations(loc);
+            Birds.AddTranslations(loc);
             Foxes.AddTranslations(loc);
             loc.AddTranslation("English", new Dictionary<string, string>
             {
@@ -165,11 +166,11 @@ namespace ThrowingAxe
 
             try
             {
-                Sparrows.Register(System.IO.Path.GetDirectoryName(Info.Location));
+                Birds.Register();
             }
             catch (System.Exception e)
             {
-                Log.LogError("Sparrows failed to register: " + e);
+                Log.LogError("Birds failed to register: " + e);
             }
         }
     }

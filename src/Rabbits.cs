@@ -33,8 +33,8 @@ namespace ThrowingAxe
         public static void BindConfig(ConfigFile config)
         {
             s_furTint = config.Bind("Rabbit", "FurTint", new Color(0.62f, 0.47f, 0.33f, 1f),
-                "Colour multiplied into the hare's materials (restart to apply).");
-            s_scale = config.Bind("Rabbit", "Scale", 0.75f, "Size relative to the vanilla hare (restart).");
+                "Fallback colour if rabbit_colors.png is missing (restart).");
+            s_scale = config.Bind("Rabbit", "Scale", 0.68f, "Size relative to the vanilla hare (restart).");
             s_speedFactor = config.Bind("Rabbit", "SpeedFactor", 1.35f, "Run speed relative to the vanilla hare (restart).");
             s_calmSpeed = config.Bind("Rabbit", "CalmSpeed", 2.2f, "Speed when not frightened (vanilla hare: 4) (restart).");
             s_idleInterval = config.Bind("Rabbit", "IdleInterval", 9f, "Seconds between two small moves when calm (restart).");
@@ -278,9 +278,12 @@ namespace ThrowingAxe
             var rabbit = new CustomCreature(CreaturePrefab, "Hare", config);
             var go = rabbit.Prefab;
             go.transform.localScale *= s_scale.Value;
-            Tint(go, s_furTint.Value);
+            // Own coat (grey-brown, cream belly, white cottontail) and own ragdoll, nothing of the hare left.
+            var mask = Look.Mask("rabbit");
+            Look.Paint(go, mask, s_furTint.Value);
 
             var character = go.GetComponent<Character>();
+            Look.OwnRagdolls(character.m_deathEffects, CreaturePrefab, mask, s_furTint.Value);
             float speed = s_speedFactor.Value;
             character.m_health = 10f;
             character.m_runSpeed *= speed;

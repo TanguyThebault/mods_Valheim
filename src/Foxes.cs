@@ -11,9 +11,10 @@ using UnityEngine;
 namespace ThrowingAxe
 {
     /// <summary>
-    /// Meadow foxes: a small, red-tinted clone of the Wolf (MonsterAI, run and bite animations) that hunts
-    /// rabbits, keeps away from players unless hit, and drops fox meat and fox pelt. The pelt makes a shaman
-    /// set: a headdress (the wolf trophy head with its lower jaw cut off, worn on the head) and a cape.
+    /// Meadow foxes: their own creature built on the Wolf's skeleton and animations, with their own painted
+    /// coat (red, white chest and tail tip, black socks), own ragdoll and own voice (yelps, no howls). They
+    /// hunt rabbits with a single bite per attack, keep away from players unless hit, and drop fox meat and
+    /// fox pelt. The pelt makes a fox cape.
     /// </summary>
     internal static class Foxes
     {
@@ -21,7 +22,6 @@ namespace ThrowingAxe
         public const string MeatPrefab = "MeadowFoxMeat";
         public const string CookedPrefab = "MeadowFoxCooked";
         public const string PeltPrefab = "MeadowFoxPelt";
-        public const string HeaddressPrefab = "MeadowFoxHeaddress";
         public const string CapePrefab = "MeadowFoxCape";
 
         internal static readonly Color FoxRed = new Color(1.0f, 0.55f, 0.25f, 1f);
@@ -30,21 +30,13 @@ namespace ThrowingAxe
         private static ConfigEntry<float> s_biteDamage;
         private static ConfigEntry<float> s_spawnChance;
         internal static ConfigEntry<float> KeepAwayDistance;
-        internal static ConfigEntry<Vector3> HeadOffset;
-        internal static ConfigEntry<Vector3> HeadRotation;
-        internal static ConfigEntry<Vector3> HeadScale;
 
         public static void BindConfig(ConfigFile config)
         {
-            s_scale = config.Bind("Fox", "Scale", 0.5f, "Size relative to the vanilla wolf (restart).");
+            s_scale = config.Bind("Fox", "Scale", 0.6f, "Size relative to the vanilla wolf (restart).");
             s_biteDamage = config.Bind("Fox", "BiteDamage", 8f, "Total damage of a fox bite (restart).");
             s_spawnChance = config.Bind("Fox", "SpawnChance", 20f, "Spawn chance per spawn check, % (restart).");
             KeepAwayDistance = config.Bind("Fox", "KeepAwayDistance", 10f, "Foxes back off from players closer than this, m (live).");
-            HeadOffset = config.Bind("FoxHeaddress", "Offset", new Vector3(0f, 0.12f, 0.02f),
-                "Position of the fox head relative to the head joint, m (live).");
-            HeadRotation = config.Bind("FoxHeaddress", "Rotation", Vector3.zero, "Rotation of the fox head, degrees (live).");
-            HeadScale = config.Bind("FoxHeaddress", "Scale", new Vector3(0.8f, 0.85f, 0.9f),
-                "Scale of the fox head (narrower than the wolf trophy) (live).");
         }
 
         public static void AddTranslations(CustomLocalization loc)
@@ -58,11 +50,8 @@ namespace ThrowingAxe
                 { "item_foxmeat_cooked_desc", "Strong-tasting, but filling." },
                 { "item_foxpelt", "Fox pelt" },
                 { "item_foxpelt_desc", "A thick red pelt. Some say it still remembers how to hunt." },
-                { "item_foxheaddress", "Fox headdress" },
-                { "item_foxheaddress_desc", "A fox head worn over your own. No protection, but its spirit guides your breath and your fists." },
                 { "item_foxcape", "Fox cape" },
-                { "item_foxcape_desc", "A red fox-fur cape. No protection, but light on the shoulders and quick in a brawl." },
-                { "se_foxheaddress", "Fox spirit" },
+                { "item_foxcape_desc", "A red fox-fur cape. Light on the shoulders and quick in a brawl." },
                 { "se_foxcape", "Fox fur" },
                 { "se_fox_tooltip", "Stamina regen +10%, unarmed +10, unarmed damage +10%" },
             });
@@ -75,11 +64,8 @@ namespace ThrowingAxe
                 { "item_foxmeat_cooked_desc", "Un goût fort, mais ça cale." },
                 { "item_foxpelt", "Peau de renard" },
                 { "item_foxpelt_desc", "Une épaisse fourrure rousse. On dit qu'elle se souvient encore de la chasse." },
-                { "item_foxheaddress", "Coiffe de renard" },
-                { "item_foxheaddress_desc", "Une tête de renard portée sur la tienne. Aucune protection, mais son esprit guide ton souffle et tes poings." },
                 { "item_foxcape", "Cape de renard" },
-                { "item_foxcape_desc", "Une cape en fourrure de renard. Aucune protection, mais légère et vive au corps à corps." },
-                { "se_foxheaddress", "Esprit du renard" },
+                { "item_foxcape_desc", "Une cape en fourrure de renard. Légère sur les épaules et vive au corps à corps." },
                 { "se_foxcape", "Fourrure de renard" },
                 { "se_fox_tooltip", "Régén. d'endurance +10 %, main nue +10, dégâts à main nue +10 %" },
             });
@@ -91,13 +77,10 @@ namespace ThrowingAxe
             Rabbits.DumpPrefab("WolfMeat");
             Rabbits.DumpPrefab("CookedWolfMeat");
             Rabbits.DumpPrefab("WolfPelt");
-            Rabbits.DumpPrefab("HelmetBronze");
             Rabbits.DumpPrefab("CapeWolf");
-            Rabbits.DumpPrefab("TrophyWolf");
 
             RegisterItems();
             RegisterCreature();
-            RegisterHeaddress();
             RegisterCape();
         }
 
@@ -186,7 +169,8 @@ namespace ThrowingAxe
             var fox = new CustomCreature(CreaturePrefab, "Wolf", config);
             var go = fox.Prefab;
             go.transform.localScale *= s_scale.Value;
-            Rabbits.Tint(go, FoxRed);
+            var mask = Look.Mask("fox");
+            Look.Paint(go, mask, FoxRed);
 
             // Not a pet, not a breeder.
             foreach (var c in go.GetComponents<Tameable>()) Object.DestroyImmediate(c);
@@ -207,18 +191,84 @@ namespace ThrowingAxe
                 ai.m_attackPlayerObjects = false;   // never bites buildings
                 ai.m_enableHuntPlayer = false;
                 ai.m_fleeIfLowHealth = 0.4f;
-                ai.m_idleSound = new EffectList();  // no wolf howls from a fox
                 ai.m_afraidOfFire = true;
             }
 
+            Look.OwnRagdolls(character.m_deathEffects, CreaturePrefab, mask, FoxRed);
+
             var humanoid = go.GetComponent<Humanoid>();
             if (humanoid != null)
-                humanoid.m_defaultItems = humanoid.m_defaultItems?.Select(CloneWeakAttack).ToArray();
+                humanoid.m_defaultItems = SingleBite(humanoid.m_defaultItems);
+
+            GiveVoice(character, ai, humanoid);
 
             go.AddComponent<FoxTag>();
             CreatureManager.Instance.AddCreature(fox);
             Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Wolf clone), AI " + (ai != null ? "MonsterAI" : "none") +
                                ", attacks " + (humanoid?.m_defaultItems?.Length ?? 0));
+        }
+
+        /// <summary>
+        /// One plain bite: the wolf has several attacks and chains bites into combos. Keep a single attack item
+        /// (the first that doesn't chain, else the first), with no chain and a pause between attacks.
+        /// </summary>
+        private static GameObject[] SingleBite(GameObject[] items)
+        {
+            if (items == null || items.Length == 0)
+                return items;
+            var attacks = items.Where(i => i != null && i.GetComponent<ItemDrop>() != null).ToList();
+            foreach (var a in attacks)
+            {
+                var sh = a.GetComponent<ItemDrop>().m_itemData.m_shared;
+                Plugin.Log.LogInfo("Wolf attack " + a.name + ": chain " + sh.m_attack.m_attackChainLevels +
+                                   ", interval " + sh.m_aiAttackInterval + ", anim " + sh.m_attack.m_attackAnimation);
+            }
+            var pick = attacks.FirstOrDefault(a => a.GetComponent<ItemDrop>().m_itemData.m_shared.m_attack.m_attackChainLevels <= 1)
+                       ?? attacks.FirstOrDefault();
+            if (pick == null)
+                return items;
+            var bite = CloneWeakAttack(pick);
+            var shared = bite.GetComponent<ItemDrop>().m_itemData.m_shared;
+            shared.m_attack.m_attackChainLevels = 1;
+            if (shared.m_secondaryAttack != null)
+                shared.m_secondaryAttack.m_attackChainLevels = 1;
+            shared.m_aiAttackInterval = 2.5f;
+            return new[] { bite };
+        }
+
+        /// <summary>Yelps instead of the wolf's howls and growls: idle and alert calls, hurt, death, attack.</summary>
+        private static void GiveVoice(Character character, MonsterAI ai, Humanoid humanoid)
+        {
+            var template = Look.FindSfxTemplate(character.m_hitEffects, character.m_deathEffects, ai?.m_alertedEffects, ai?.m_idleSound);
+            if (template == null)
+                Plugin.Log.LogWarning("Fox voice: no vanilla sound to clone, wolf sounds removed");
+            var calls = Look.MakeSfx(CreaturePrefab + "_sfx_call", template, Look.LoadClips("sfx_fox", "fox_call"));
+            var hurt = Look.MakeSfx(CreaturePrefab + "_sfx_hurt", template, Look.LoadClips("sfx_fox", "fox_hurt"), 0.95f, 1.12f);
+            var death = Look.MakeSfx(CreaturePrefab + "_sfx_death", template, Look.LoadClips("sfx_fox", "fox_death"));
+            var attack = Look.MakeSfx(CreaturePrefab + "_sfx_attack", template, Look.LoadClips("sfx_fox", "fox_attack"));
+
+            character.m_hitEffects = Look.Voice(character.m_hitEffects, hurt);
+            character.m_critHitEffects = Look.Voice(character.m_critHitEffects, hurt);
+            character.m_backstabHitEffects = Look.Voice(character.m_backstabHitEffects, hurt);
+            character.m_deathEffects = Look.Voice(character.m_deathEffects, death);
+            if (ai != null)
+            {
+                ai.m_alertedEffects = Look.Voice(ai.m_alertedEffects, calls);
+                ai.m_idleSound = Look.Voice(new EffectList(), calls);
+                ai.m_idleSoundInterval = 25f;
+                ai.m_idleSoundChance = 0.3f;
+            }
+            if (humanoid?.m_defaultItems != null)
+                foreach (var item in humanoid.m_defaultItems)
+                {
+                    var shared = item?.GetComponent<ItemDrop>()?.m_itemData.m_shared;
+                    if (shared == null)
+                        continue;
+                    shared.m_startEffect = Look.Voice(shared.m_startEffect, null);
+                    shared.m_triggerEffect = Look.Voice(shared.m_triggerEffect, null);
+                    shared.m_attack.m_startEffect = Look.Voice(shared.m_attack.m_startEffect, attack);
+                    shared.m_attack.m_triggerEffect = Look.Voice(shared.m_attack.m_triggerEffect, null);
+                }
         }
 
         /// <summary>The wolf's bite is mountain-tier; give the fox its own, weaker copy (wolves keep theirs).</summary>
@@ -267,98 +317,6 @@ namespace ThrowingAxe
             shared.m_setStatusEffect = null;
         }
 
-        // Lower jaw of the wolf trophy mesh (model space): below the mouth line, in front of the neck.
-        private const float JawMaxY = -0.03f;
-        private const float JawMinZ = 0.02f;
-
-        private static void RegisterHeaddress()
-        {
-            var helm = new CustomItem(HeaddressPrefab, "HelmetBronze", new ItemConfig
-            {
-                Name = "$item_foxheaddress",
-                Description = "$item_foxheaddress_desc",
-                CraftingStation = CraftingStations.Workbench,
-                MinStationLevel = 1,
-                Requirements = new[]
-                {
-                    new RequirementConfig(PeltPrefab, 3, 0, true),
-                    new RequirementConfig("LeatherScraps", 2, 0, true),
-                },
-            });
-            var root = helm.ItemPrefab.transform;
-            var trophy = PrefabManager.Cache.GetPrefab<GameObject>("TrophyWolf");
-            var srcAttach = trophy != null ? trophy.transform.Find("attach") : null;
-            var oldAttach = root.Find("attach");
-            if (srcAttach == null || oldAttach == null)
-            {
-                Plugin.Log.LogError("Headdress: TrophyWolf/attach or HelmetBronze/attach missing");
-                return;
-            }
-
-            // The ground model: hide the helmet's own renderers (keep its colliders so it doesn't fall through).
-            foreach (var r in root.GetComponentsInChildren<Renderer>(true))
-                if (!(r is ParticleSystemRenderer))
-                    r.enabled = false;
-
-            var attach = Object.Instantiate(srcAttach.gameObject, root, false);
-            attach.name = "attach";
-            attach.transform.localPosition = oldAttach.localPosition;
-            attach.transform.localRotation = oldAttach.localRotation;
-            attach.transform.localScale = Vector3.one;
-            Object.DestroyImmediate(oldAttach.gameObject);
-            foreach (var col in attach.GetComponentsInChildren<Collider>(true))
-                Object.DestroyImmediate(col);
-
-            foreach (var mf in attach.GetComponentsInChildren<MeshFilter>(true))
-            {
-                if (mf.sharedMesh == null)
-                    continue;
-                if (mf.sharedMesh.isReadable)
-                    mf.sharedMesh = CutJaw(mf.sharedMesh);
-                else
-                    Plugin.Log.LogWarning("Headdress: mesh " + mf.sharedMesh.name + " not readable, jaw kept");
-                mf.gameObject.AddComponent<FoxHeadTuner>();
-            }
-            Rabbits.Tint(attach, FoxRed);
-
-            var shared = helm.ItemDrop.m_itemData.m_shared;
-            MakeCosmetic(shared);
-            shared.m_weight = 1f;
-            Rabbits.SetIcon(helm);
-            shared.m_equipStatusEffect = MakeFoxEffect("SE_FoxHeaddress", "$se_foxheaddress",
-                shared.m_icons != null && shared.m_icons.Length > 0 ? shared.m_icons[0] : null);
-            ItemManager.Instance.AddItem(helm);
-        }
-
-        private static Mesh CutJaw(Mesh src)
-        {
-            var mesh = Object.Instantiate(src);
-            mesh.name = src.name + "_nojaw";
-            var v = mesh.vertices;
-            int removed = 0;
-            for (int sub = 0; sub < mesh.subMeshCount; sub++)
-            {
-                var tris = mesh.GetTriangles(sub);
-                var keep = new List<int>(tris.Length);
-                for (int i = 0; i < tris.Length; i += 3)
-                {
-                    Vector3 c = (v[tris[i]] + v[tris[i + 1]] + v[tris[i + 2]]) / 3f;
-                    if (c.y < JawMaxY && c.z > JawMinZ)
-                    {
-                        removed++;
-                        continue;
-                    }
-                    keep.Add(tris[i]);
-                    keep.Add(tris[i + 1]);
-                    keep.Add(tris[i + 2]);
-                }
-                mesh.SetTriangles(keep, sub);
-            }
-            mesh.RecalculateBounds();
-            Plugin.Log.LogInfo("Headdress: cut " + removed + " jaw triangles from " + src.name);
-            return mesh;
-        }
-
         private static void RegisterCape()
         {
             var cape = new CustomItem(CapePrefab, "CapeWolf", new ItemConfig
@@ -376,6 +334,7 @@ namespace ThrowingAxe
             Rabbits.Tint(cape.ItemPrefab, FoxRed);
             var shared = cape.ItemDrop.m_itemData.m_shared;
             MakeCosmetic(shared);
+            shared.m_armor = 1f;
             shared.m_weight = 2f;
             shared.m_equipStatusEffect = null;
             Rabbits.SetIcon(cape);
@@ -424,17 +383,6 @@ namespace ThrowingAxe
         internal static bool IsProvoked(Character fox)
         {
             return s_provoked.TryGetValue(fox, out var p) && p.Key != null && Time.time - p.Value < ProvokedTime;
-        }
-    }
-
-    /// <summary>Applies the live-tunable pose of the fox head on the headdress model.</summary>
-    public class FoxHeadTuner : MonoBehaviour
-    {
-        private void LateUpdate()
-        {
-            transform.localPosition = Foxes.HeadOffset.Value;
-            transform.localRotation = Quaternion.Euler(Foxes.HeadRotation.Value);
-            transform.localScale = Foxes.HeadScale.Value;
         }
     }
 
