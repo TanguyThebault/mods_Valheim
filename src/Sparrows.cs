@@ -51,6 +51,7 @@ namespace ThrowingAxe
             }
             Dump(baseBird);
             LoadSongs(Path.Combine(pluginDir, "sfx"));
+            s_colorMask = LoadMask(Path.Combine(pluginDir, "sparrow_colors.png"));
 
             var go = PrefabManager.Instance.CreateClonedPrefab(Prefab, baseBird);
             go.transform.localScale *= s_scale.Value;
@@ -157,6 +158,19 @@ namespace ThrowingAxe
         /// the GPU (works on non-readable textures) and its brightness remapped onto a sparrow-brown ramp, which
         /// keeps the feather detail.
         /// </summary>
+        private static Texture2D s_colorMask;
+
+        private static Texture2D LoadMask(string path)
+        {
+            if (!File.Exists(path))
+            {
+                Plugin.Log.LogWarning("No colour mask at " + path + ": plain brown sparrows");
+                return null;
+            }
+            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            return tex.LoadImage(File.ReadAllBytes(path)) ? tex : null;
+        }
+
         private static void Recolor(GameObject go)
         {
             var done = new Dictionary<Texture, Texture2D>();
@@ -174,7 +188,7 @@ namespace ThrowingAxe
                     if (src != null)
                     {
                         if (!done.TryGetValue(src, out var tex))
-                            done[src] = tex = BrownRamp(src);
+                            done[src] = tex = s_colorMask != null ? Colorize(src, s_colorMask) : BrownRamp(src);
                         m.SetTexture("_MainTex", tex);
                     }
                     if (m.HasProperty("_Color"))
@@ -183,6 +197,45 @@ namespace ThrowingAxe
                 }
                 r.sharedMaterials = mats;
             }
+        }
+
+        /// <summary>
+        /// Colour mask (blue crown, red breast, blue wing tips...; painted in the crow's UV layout by
+        /// tools/paint_sparrow_mask.py) multiplied by the crow texture's shading, so feather detail survives.
+        /// </summary>
+        private static Texture2D Colorize(Texture src, Texture2D mask)
+        {
+            int w = mask.width, h = mask.height;
+            var shade = ReadThroughGpu(src, w, h).GetPixels();
+            var lum = shade.Select(c => 0.3f * c.r + 0.59f * c.g + 0.11f * c.b).OrderBy(v => v).ToArray();
+            float lo = lum[(int)(lum.Length * 0.02f)], hi = Mathf.Max(lum[(int)(lum.Length * 0.98f)], lo + 0.01f);
+            var col = mask.GetPixels();
+            var px = new Color[col.Length];
+            for (int i = 0; i < px.Length; i++)
+            {
+                float l = Mathf.Clamp01((0.3f * shade[i].r + 0.59f * shade[i].g + 0.11f * shade[i].b - lo) / (hi - lo));
+                var c = col[i] * (0.75f + 0.5f * l);
+                c.a = 1f;
+                px[i] = c;
+            }
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, true) { name = src.name + "_sparrow" };
+            tex.SetPixels(px);
+            tex.Apply(true);
+            return tex;
+        }
+
+        private static Texture2D ReadThroughGpu(Texture src, int w, int h)
+        {
+            var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32);
+            var prev = RenderTexture.active;
+            Graphics.Blit(src, rt);
+            RenderTexture.active = rt;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, w, h), 0, 0);
+            tex.Apply(false);
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+            return tex;
         }
 
         private static Texture2D BrownRamp(Texture src)

@@ -150,3 +150,17 @@ Redéployer le plugin : dotnet build -c Release puis copier bin/Release/Throwing
   la moyenne), volume 0.7 -> 0.5. Réglables à chaud : [Sparrow] SongInterval et SongVolume.
 - Bottes : armure 0, m_maxQuality 1 (rien à améliorer), vitesse +5 % (m_movementModifier), SE réduit à
   saut +8 %. Plus de réduction d'endurance de saut ni de dégâts de chute.
+
+## v0.6 : moineaux colorés (touches de bleu et de rouge)
+- Crow : texture crow_d de 64x64, presque uniformément noire, sans anatomie lisible. Deux maillages : posé
+  (MeshFilter "Cube", 394 faces, y vers le haut, bec en -z) et en vol (SkinnedMeshRenderer "Cube.001",
+  280 faces, en diagonale dans la pose de bind). **Ils partagent le même dépliage UV.** Extraits avec UnityPy
+  depuis valheim_Data/StreamingAssets/SoftRef/Bundles (le bundle qui contient crow_d), en lecture seule.
+- tools/paint_sparrow_mask.py : rasterise chaque triangle dans l'espace UV (256x256) et colore chaque pixel
+  selon le point 3D interpolé : calotte bleue, joues chamois, gorge et poitrine rouges, ventre chamois, dos
+  brun, aile repliée brune avec rémiges bleues, queue brun foncé, pattes et bec. Les ailes déployées (îlots
+  propres au maillage en vol) sont brunes avec les pointes bleues. Dilatation de 6 px contre les coutures.
+  Aperçu rendu et vérifié. Le PNG ne contient que nos couleurs ; les maillages sont extraits de
+  l'install du joueur au build, jamais committés.
+- En jeu : masque (sparrow_colors.png à côté du DLL) x ombrage du crow (luminance normalisée, 0.75-1.25).
+  Repli sur le dégradé brun si le masque manque. Référence ImageConversionModule pour LoadImage.
