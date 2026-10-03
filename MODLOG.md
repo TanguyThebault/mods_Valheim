@@ -431,3 +431,10 @@ gros.
   l'animal remonte (y > eau - 1.3) puis RPC WL_Spout à tout le monde (particules, son, cambrure).
 - Labo : planche <prefab>_spout.png (simulation des particules dans le temps).
 - Coût fal de cette passe : environ 0.06 $ (2 images + 1 Trellis 2).
+
+## v0.15 — 2026-10-03
+- Lab: 12 frames, 5 views (side, front, top, 3/4 front, 3/4 back), flashy green background, renderer dump in _index.txt; waits 2 frames after spawning (bounds were stale → fish framed off-screen).
+- Swimmers: smooth spine weights + differential bend, whipping fluke; whale/orca amplitudes raised.
+- Whale: texture painted from geometry, 4 zero normals fixed, 145 stray fragments (340 faces) removed, fins/flukes given real back faces.
+- Sea: leash to the closest player + claiming orphaned ZDOs (whales stopped when ownership dropped) — untested in game.
+- Vanilla fish: Fish1-3 on a 6-joint spine, Fish4-12 on a swaying pivot; soft references loaded so materials resolve. Verified in the lab from 5 angles.

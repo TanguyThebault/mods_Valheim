@@ -97,6 +97,7 @@ namespace Wildlife
             Try("Mice", Mice.Register);
             Try("Birds", Birds.Register);
             Try("Sea", Sea.Register);
+            Try("Fish", Fishes.Register);
         }
 
         private static void Try(string what, System.Action register)

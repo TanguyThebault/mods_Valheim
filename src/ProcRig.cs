@@ -44,7 +44,7 @@ namespace Wildlife
 
         /// <summary>Creates the visual: bone hierarchy + SkinnedMeshRenderer. Returns the bone transforms by name.</summary>
         public static Dictionary<string, Transform> Build(GameObject owner, ModelData d, List<Bone> bones, Func<int, int[]> allowed,
-            Material template, float size, string name)
+            Material template, float size, string name, Func<int, BoneWeight> weights = null)
         {
             var root = new GameObject("Visual_rig").transform;
             root.SetParent(owner.transform, false);
@@ -73,7 +73,7 @@ namespace Wildlife
             mesh.normals = d.Nrm;
             mesh.uv = d.Uv;
             mesh.triangles = d.Idx;
-            mesh.boneWeights = Skin(d, bones, allowed);
+            mesh.boneWeights = weights != null ? Enumerable.Range(0, d.Pos.Length).Select(weights).ToArray() : Skin(d, bones, allowed);
             mesh.bindposes = bones.Select(b => Matrix4x4.Translate(-(b.Pos - origin))).ToArray();
             mesh.RecalculateBounds();
             mesh.RecalculateTangents();
@@ -217,6 +217,16 @@ namespace Wildlife
         /// <summary>Spine of 8 joints head to fluke (centroids of slices along z), plus the two pectoral fins.</summary>
         public static List<Bone> SwimmerBones(ModelData d, float finZMin, float finZMax, out Func<int, int[]> allowed)
         {
+            return SwimmerBones(d, finZMin, finZMax, out allowed, out _);
+        }
+
+        /// <summary>
+        /// Same, plus smooth spine weights: each vertex is shared between the two joints that bracket it along the
+        /// body (linear in z), so the body bends as one continuous curve instead of rigid segments.
+        /// </summary>
+        public static List<Bone> SwimmerBones(ModelData d, float finZMin, float finZMax, out Func<int, int[]> allowed,
+            out Func<int, BoneWeight> weights)
+        {
             var bones = new List<Bone>();
             int Add(string name, int parent, Vector3 p) { bones.Add(new Bone { Name = name, Parent = parent, Pos = p }); return bones.Count - 1; }
             const int N = 8;
@@ -241,12 +251,37 @@ namespace Wildlife
             }
             _ = halfWidth;
             int finL = bones.FindIndex(b => b.Name == "FinL"), finR = bones.FindIndex(b => b.Name == "FinR");
-            var spineSet = spine.Concat(new[] { bones.FindIndex(b => b.Name == "Fluke") }).ToArray();
+            int fluke = bones.FindIndex(b => b.Name == "Fluke");
+            var spineSet = spine.Concat(new[] { fluke }).ToArray();
             allowed = v =>
             {
                 Vector3 n = d.Norm(v);
                 if (Fin(n)) return new[] { n.x < 0.5f ? finL : finR, Near(n.z) };
                 return spineSet;
+            };
+            // chain head -> tail with each joint's normalised z (decreasing)
+            var chain = spineSet;
+            var cz = chain.Select(i => (bones[i].Pos.z - d.Bounds.min.z) / d.Bounds.size.z).ToArray();
+            BoneWeight Along(float z)
+            {
+                if (z >= cz[0]) return new BoneWeight { boneIndex0 = chain[0], weight0 = 1f };
+                for (int i = 0; i < chain.Length - 1; i++)
+                    if (z <= cz[i] && z >= cz[i + 1])
+                    {
+                        float t = Mathf.InverseLerp(cz[i], cz[i + 1], z);
+                        return new BoneWeight { boneIndex0 = chain[i], weight0 = 1f - t, boneIndex1 = chain[i + 1], weight1 = t };
+                    }
+                return new BoneWeight { boneIndex0 = chain[chain.Length - 1], weight0 = 1f };
+            }
+            weights = v =>
+            {
+                Vector3 n = d.Norm(v);
+                var w = Along(n.z);
+                if (!Fin(n))
+                    return w;
+                // fins: the fin bone, blended with the body near the root
+                float out_ = Mathf.InverseLerp(0.28f, 0.45f, Mathf.Abs(n.x - 0.5f));
+                return new BoneWeight { boneIndex0 = n.x < 0.5f ? finL : finR, weight0 = 0.4f + 0.6f * out_, boneIndex1 = w.boneIndex0, weight1 = 0.6f - 0.6f * out_ };
             };
             return bones;
         }
@@ -484,7 +519,7 @@ namespace Wildlife
             {
                 float k = (float)i / (n - 1);                               // 0 head .. 1 tail
                 float shape = Mathf.Pow(k, Exponent);
-                float v = amp * shape * Mathf.Sin(_phase - k * WaveNumber) - arch * 8f * (1f - k) + arch * 6f * k;
+                float v = amp * shape * Mathf.Sin(_phase - k * WaveNumber) - arch * 8f * (1f - k) + arch * 6f * k;   // total bend at k
                 float h = side * Mathf.Pow(k, 1.3f) * Mathf.Sin(_phase * 0.5f - k * 1.6f) + turn * k;
                 var rot = Quaternion.Euler(v - prevV, h - prevH, i == 0 ? roll : 0f);
                 _spine[i].localRotation = rot;
@@ -493,9 +528,10 @@ namespace Wildlife
             }
             if (_fluke != null)
             {
-                float fv = amp * FlukeBoost * Mathf.Sin(_phase - WaveNumber - 0.5f);
-                float fh = side * 0.8f * Mathf.Sin(_phase * 0.5f - 2f) + turn * 0.6f;
-                _fluke.localRotation = Quaternion.Euler(fv - prevV * 0.3f, fh, 0f);
+                // the fluke whips: its own extra bend, lagging the body wave
+                float fv = amp * 0.45f * FlukeBoost * Mathf.Sin(_phase - WaveNumber - 0.9f);
+                float fh = side * 0.5f * Mathf.Sin(_phase * 0.5f - 2.2f) + turn * 0.3f;
+                _fluke.localRotation = Quaternion.Euler(fv, fh, 0f);
             }
             float fin = Mathf.Sin(_phase * 0.5f) * 5f;
             float steer = turn * 0.4f;

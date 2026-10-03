@@ -59,7 +59,7 @@ namespace Wildlife
                 BreachChance = 0f, Wander = 25f, Species = "whale",
             }, finZ: new Vector2(0.45f, 0.8f), anim: a =>
             {
-                a.Amplitude = 18f; a.Horizontal = 8f; a.BaseFrequency = 0.2f; a.Exponent = 1.25f; a.WaveNumber = 1.8f; a.FlukeBoost = 1.9f;
+                a.Amplitude = 30f; a.Horizontal = 8f; a.BaseFrequency = 0.22f; a.Exponent = 2.0f; a.WaveNumber = 1.6f; a.FlukeBoost = 1.6f;
             }, spout: new Vector2(6.5f, 1.4f));
             Make(OrcaPrefab, "orca", "$ocean_orca", template, mist, s_orcaLength.Value, new SeaSwimmer.Settings
             {
@@ -67,7 +67,7 @@ namespace Wildlife
                 BreachChance = 0.3f, Wander = 35f, Species = "orca",
             }, finZ: new Vector2(0.48f, 0.75f), anim: a =>
             {
-                a.Amplitude = 16f; a.Horizontal = 7f; a.BaseFrequency = 0.45f; a.Exponent = 1.45f; a.WaveNumber = 2.4f; a.FlukeBoost = 1.4f;
+                a.Amplitude = 28f; a.Horizontal = 7f; a.BaseFrequency = 0.5f; a.Exponent = 2.0f; a.WaveNumber = 1.8f; a.FlukeBoost = 1.4f;
             }, spout: new Vector2(3.5f, 0.7f));
             AddSpawn(WhalePrefab, 16f, s_whaleMax.Value, 1, 1, s_whaleChance.Value);
             AddSpawn(OrcaPrefab, 9f, s_orcaMax.Value, 2, 3, s_orcaChance.Value);
@@ -99,12 +99,18 @@ namespace Wildlife
             foreach (var c in go.GetComponents<MeshFilter>()) Object.DestroyImmediate(c);
             go.AddComponent<ZSyncTransform>();
 
-            var bones = ProcRig.SwimmerBones(d, finZ.x, finZ.y, out var allowed);
-            var rig = ProcRig.Build(go, d, bones, allowed, template, length, model + "_rig");
+            var bones = ProcRig.SwimmerBones(d, finZ.x, finZ.y, out var allowed, out var weights);
+            var rig = ProcRig.Build(go, d, bones, allowed, template, length, model + "_rig", weights);
             // centre the body on the object so it swims around its own position, not its belly
             var visual = go.transform.Find("Visual_rig");
             visual.localPosition = new Vector3(0f, -length * d.Bounds.size.y / d.Bounds.size.z * 0.5f, 0f);
 
+            if (model == "whale")
+            {
+                // its fins and flukes now have real back faces (build_models clean_shells): draw front faces only
+                var mat = visual.GetComponent<SkinnedMeshRenderer>().sharedMaterial;
+                if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", 2f);
+            }
             AddBlowhole(go, d, visual, rig, mist, spout.x, spout.y);
             anim(go.AddComponent<ProcSwimmer>());
             go.AddComponent<SeaSwimmer>().Set(settings);
@@ -292,12 +298,18 @@ namespace Wildlife
 
         private bool Deep(Vector3 p, float depth) => Ground(p) < Water() - depth;
 
+        /// <summary>
+        /// Waypoints stay within ~70 m of the nearest player: only the owner moves the animal, and the game drops
+        /// ownership of objects outside the players' active area, which left whales frozen in the distance.
+        /// </summary>
         private void PickTarget()
         {
-            for (int i = 0; i < 12; i++)
+            var player = Player.GetClosestPlayer(transform.position, 250f);
+            Vector3 centre = player != null ? player.transform.position : transform.position;
+            for (int i = 0; i < 16; i++)
             {
-                Vector2 c = Random.insideUnitCircle * 140f;
-                var t = transform.position + new Vector3(c.x, 0f, c.y);
+                Vector2 c = Random.insideUnitCircle * 70f;
+                var t = centre + new Vector3(c.x, 0f, c.y);
                 if (Deep(t, S.MinDepth))
                 {
                     _target = t;
@@ -311,8 +323,16 @@ namespace Wildlife
 
         private void Update()
         {
-            if (_nview == null || !_nview.IsValid() || !_nview.IsOwner() || ZoneSystem.instance == null)
+            if (_nview == null || !_nview.IsValid() || ZoneSystem.instance == null)
                 return;
+            if (!_nview.IsOwner())
+            {
+                // nobody owns it any more (it drifted out of every active area): the closest player takes it over
+                if (_nview.GetZDO().GetOwner() == 0L && Player.m_localPlayer != null &&
+                    Player.GetClosestPlayer(transform.position, 300f) == Player.m_localPlayer)
+                    _nview.ClaimOwnership();
+                return;
+            }
             float dt = Time.deltaTime;
             float water = Water();
             Vector3 p = transform.position;

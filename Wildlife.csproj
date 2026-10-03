@@ -27,6 +27,7 @@
     <Reference Include="assembly_utils"><HintPath>$(Managed)\assembly_utils.dll</HintPath></Reference>
     <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(Managed)\UnityEngine.CoreModule.dll</HintPath></Reference>
+    <Reference Include="SoftReferenceableAssets"><HintPath>$(Managed)\SoftReferenceableAssets.dll</HintPath></Reference>
     <Reference Include="assembly_guiutils"><HintPath>$(Managed)\assembly_guiutils.dll</HintPath></Reference>
     <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(Managed)\UnityEngine.IMGUIModule.dll</HintPath></Reference>
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(Managed)\UnityEngine.TextRenderingModule.dll</HintPath></Reference>

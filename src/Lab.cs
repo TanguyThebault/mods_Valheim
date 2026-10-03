@@ -17,7 +17,8 @@ namespace Wildlife
     ///                                                 or "refit" to re-apply the generated models with the
     ///                                                 current [MouseFit] config before rendering
     ///   -> lab/&lt;prefab&gt;_bind.png     bind pose: side | front | top
-    ///      lab/&lt;prefab&gt;_&lt;clip&gt;.png   one row side view, one row front view, frames across the clip
+    ///      lab/&lt;prefab&gt;_&lt;clip&gt;.png   one row per view (side, front, top, 3/4 front, 3/4 back), frames
+    ///                                  across the clip, on a flashy green background
     ///      lab/&lt;prefab&gt;_index.txt    clips, lengths, files;  lab/done.txt when the request is finished
     /// Also the console command `ta_lab &lt;prefab&gt; [frames] [tile]`.
     /// </summary>
@@ -65,7 +66,7 @@ namespace Wildlife
                     catch (System.Exception e) { log.AppendLine(raw + ": " + e); }
                     continue;
                 }
-                yield return Render(a[0], a.Length > 1 ? int.Parse(a[1]) : 8, a.Length > 2 ? int.Parse(a[2]) : 256, log);
+                yield return Render(a[0], a.Length > 1 ? int.Parse(a[1]) : 12, a.Length > 2 ? int.Parse(a[2]) : 256, log);
             }
             File.WriteAllText(Path.Combine(Dir, "done.txt"), log.ToString());
             s_busy = false;
@@ -82,6 +83,8 @@ namespace Wildlife
             }
 
             var go = Spawn(prefab);
+            yield return null;   // renderer bounds only follow the move to y = 9000 at the end of a frame
+            yield return null;
             var animator = go.GetComponentInChildren<Animator>(true);
             var clips = animator != null && animator.runtimeAnimatorController != null
                 ? animator.runtimeAnimatorController.animationClips.GroupBy(c => c.name).Select(g => g.First()).ToArray()
@@ -100,7 +103,7 @@ namespace Wildlife
             cam.orthographic = true;
             cam.orthographicSize = size;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.36f, 0.39f, 0.43f);
+            cam.backgroundColor = new Color(0f, 1f, 0.15f);   // flashy green: models stand out
             cam.cullingMask = 1 << Layer;
             cam.nearClipPlane = 0.01f;
             cam.farClipPlane = size * 20f;
@@ -131,24 +134,43 @@ namespace Wildlife
             yield return null;   // let the skinned meshes update once
 
             var index = new StringBuilder(prefabName + "  bounds " + bounds.size.ToString("F3") + "  (left = side view from the right, head to the right if it faces +z)\n");
-            var bind = new Texture2D(tile * 3, tile, TextureFormat.RGB24, false);
-            View(right, up); Shot(bind, 0, 0);
-            View(fwd, up); Shot(bind, 1, 0);
-            View(up, fwd); Shot(bind, 2, 0);
+            // five views: side (from the right), front, top, three-quarter front, three-quarter back
+            var views = new[]
+            {
+                new KeyValuePair<Vector3, Vector3>(right, up),
+                new KeyValuePair<Vector3, Vector3>(fwd, up),
+                new KeyValuePair<Vector3, Vector3>(up, fwd),
+                new KeyValuePair<Vector3, Vector3>((right + fwd * 0.9f + up * 0.6f).normalized, up),
+                new KeyValuePair<Vector3, Vector3>((-right * 0.8f - fwd * 0.9f + up * 0.5f).normalized, up),
+            };
+            int nv = views.Length;
+            void AllViews(Texture2D sheet, int col)
+            {
+                for (int v = 0; v < nv; v++)
+                {
+                    View(views[v].Key, views[v].Value);
+                    Shot(sheet, col, v);
+                }
+            }
+            var bind = new Texture2D(tile * nv, tile, TextureFormat.RGB24, false);
+            for (int v = 0; v < nv; v++)
+            {
+                View(views[v].Key, views[v].Value);
+                Shot(bind, v, 0);
+            }
             Save(bind, prefabName + "_bind.png");
-            index.AppendLine("bind: " + prefabName + "_bind.png (side | front | top)");
+            index.AppendLine("bind: " + prefabName + "_bind.png (side | front | top | 3/4 front | 3/4 back); sheets: one row per view in that order");
 
             foreach (var clip in clips)
             {
-                var sheet = new Texture2D(tile * frames, tile * 2, TextureFormat.RGB24, false);
+                var sheet = new Texture2D(tile * frames, tile * nv, TextureFormat.RGB24, false);
                 for (int f = 0; f < frames; f++)
                 {
                     float t = frames > 1 ? clip.length * f / (frames - 1) : 0f;
                     clip.SampleAnimation(animator.gameObject, t);
                     yield return null;   // skinning happens once per frame
                     yield return null;
-                    View(right, up); Shot(sheet, f, 0);
-                    View(fwd, up); Shot(sheet, f, 1);
+                    AllViews(sheet, f);
                 }
                 string file = prefabName + "_" + Safe(clip.name) + ".png";
                 Save(sheet, file);
@@ -158,14 +180,13 @@ namespace Wildlife
             {
                 foreach (float speed in proc.LabSpeeds)
                 {
-                    var sheet = new Texture2D(tile * frames, tile * 2, TextureFormat.RGB24, false);
+                    var sheet = new Texture2D(tile * frames, tile * nv, TextureFormat.RGB24, false);
                     for (int f = 0; f < frames; f++)
                     {
                         proc.LabPose(speed, speed < 0.1f ? f * 0.6f : f / (float)frames * 1.2f);
                         yield return null;
                         yield return null;
-                        View(right, up); Shot(sheet, f, 0);
-                        View(fwd, up); Shot(sheet, f, 1);
+                        AllViews(sheet, f);
                     }
                     string file = prefabName + "_proc_" + speed.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + ".png";
                     Save(sheet, file);
@@ -176,22 +197,25 @@ namespace Wildlife
             var holes = go.GetComponentsInChildren<ParticleSystem>(true).Where(ps => ps.name == "Blowhole").ToArray();
             if (holes.Length > 0)
             {
-                foreach (var h in holes) h.gameObject.SetActive(true);
+                foreach (var h in holes) { h.gameObject.SetActive(true); var hr = h.GetComponent<ParticleSystemRenderer>(); if (hr != null) hr.enabled = true; }
                 float keep = cam.orthographicSize;
                 cam.orthographicSize = keep * 1.5f;
-                var sheet = new Texture2D(tile * frames, tile * 2, TextureFormat.RGB24, false);
+                var sheet = new Texture2D(tile * frames, tile * nv, TextureFormat.RGB24, false);
                 for (int f = 0; f < frames; f++)
                 {
                     foreach (var h in holes) h.Simulate(0.1f + f * 0.35f, true, true);
                     yield return null;
                     yield return null;
-                    View(right, up); Shot(sheet, f, 0);
-                    View(fwd, up); Shot(sheet, f, 1);
+                    AllViews(sheet, f);
                 }
                 cam.orthographicSize = keep;
                 Save(sheet, prefabName + "_spout.png");
                 index.AppendLine("spout (0.1 s + 0.35 s per frame): " + prefabName + "_spout.png");
             }
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                index.AppendLine("renderer " + r.name + " (" + r.GetType().Name + ") enabled=" + r.enabled + " active=" + r.gameObject.activeInHierarchy +
+                                 " layer=" + r.gameObject.layer + " bounds=" + r.bounds.size.ToString("F2") + " mats=" +
+                                 string.Join(",", r.sharedMaterials.Select(m => m == null ? "NULL" : m.name + "/" + (m.shader != null ? m.shader.name : "no shader"))));
             File.WriteAllText(Path.Combine(Dir, prefabName + "_index.txt"), index.ToString());
 
             cam.targetTexture = null;
@@ -214,7 +238,13 @@ namespace Wildlife
                         try { Object.DestroyImmediate(mb); } catch { }
             foreach (var col in go.GetComponentsInChildren<Collider>(true)) col.enabled = false;
             foreach (var rb in go.GetComponentsInChildren<Rigidbody>(true)) { rb.isKinematic = true; rb.useGravity = false; }
-            foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true)) ps.gameObject.SetActive(false);
+            // silence particles without switching objects off: items (fish...) carry theirs on the root
+            foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var pr = ps.GetComponent<ParticleSystemRenderer>();
+                if (pr != null && ps.name != "Blowhole") pr.enabled = false;
+            }
             foreach (var lod in go.GetComponentsInChildren<LODGroup>(true)) lod.enabled = false;
             foreach (var t in go.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layer;
             go.transform.SetParent(null, false);
