@@ -531,3 +531,15 @@ vérifications insuffisantes). Nouveau pipeline, avec une porte de validation à
   barre la route. KeepAwayDistance supprimé. Toujours : un renard frappé riposte.
 - Renard à la nage : m_swimDepth du loup non mis à l'échelle (tête sous l'eau). Maintenant
   loup x échelle x 0,75, ou [Fox] SwimDepth. Valeur écrite dans le log.
+
+## v0.20.0 (2026-10-04) : noms sans « Meadow », traductions relues
+- Prefabs renommés (demande de Lekinox, qui recrée un monde : pas de migration) : Rabbit, RabbitHide,
+  RabbitMeat, CookedRabbitMeat, RabbitBoots ; Fox, FoxMeat, CookedFoxMeat, FoxPelt, CapeFox ; FieldMouse,
+  MouseMeat, CookedMouseMeat ; Sparrow, Owl ; Whale, Orca (ex-Ocean*). Tokens : enemy_fox, enemy_fieldmouse,
+  owl, whale, orca. rug_rabbit inchangé.
+- Vérifié contre la liste des prefabs vanilla (5 935 noms, extraite de
+  valheim_Data/StreamingAssets/SoftRef/manifest_extended) : aucun conflit, y compris les noms dérivés
+  (Fox_ragdoll, Owl_*...). RabbitMeat n'y figure pas : le « conflit » de la v0.3 venait sans doute d'un
+  double enregistrement. À confirmer au premier lancement (log Jotunn « Failed to clone prefab »).
+- Traductions EN/FR relues : description de la viande de lapin sans « prairies », infobulle de la cape de
+  renard précisée (compétence Mains nues), formulations FR retouchées.

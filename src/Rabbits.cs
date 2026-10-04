@@ -16,10 +16,10 @@ namespace Wildlife
     /// </summary>
     internal static class Rabbits
     {
-        public const string CreaturePrefab = "MeadowRabbit";
-        public const string HidePrefab = "MeadowRabbitHide";
-        public const string MeatPrefab = "MeadowRabbitMeat";
-        public const string CookedPrefab = "MeadowRabbitCooked";
+        public const string CreaturePrefab = "Rabbit";
+        public const string HidePrefab = "RabbitHide";
+        public const string MeatPrefab = "RabbitMeat";
+        public const string CookedPrefab = "CookedRabbitMeat";
 
         private static ConfigEntry<Color> s_furTint;
         private static ConfigEntry<float> s_scale;
@@ -51,9 +51,9 @@ namespace Wildlife
                 { "item_rabbithide", "Rabbit hide" },
                 { "item_rabbithide_desc", "Soft, light fur. Quick hands caught it; quicker legs nearly got away." },
                 { "item_rabbitmeat", "Rabbit meat" },
-                { "item_rabbitmeat_desc", "Lean meat from a meadow rabbit. Better cooked." },
+                { "item_rabbitmeat_desc", "Lean rabbit meat. Better cooked." },
                 { "item_rabbitmeat_cooked", "Cooked rabbit" },
-                { "item_rabbitmeat_cooked_desc", "Spit-roasted rabbit. Light, but it keeps you on your feet." },
+                { "item_rabbitmeat_cooked_desc", "Spit-roasted rabbit. Light, but it keeps you going." },
                 { "piece_rug_rabbit", "Small rabbit-fur rug" },
                 { "piece_rug_rabbit_desc", "Soft under bare feet by the fire." },
                 { "item_rabbitboots", "Rabbit-fur boots" },
@@ -67,7 +67,7 @@ namespace Wildlife
                 { "item_rabbithide", "Peau de lapin" },
                 { "item_rabbithide_desc", "Une fourrure douce et légère. Il a fallu des mains rapides, et des jambes plus rapides encore." },
                 { "item_rabbitmeat", "Viande de lapin" },
-                { "item_rabbitmeat_desc", "Une viande maigre de lapin des prairies. Meilleure cuite." },
+                { "item_rabbitmeat_desc", "Une viande de lapin, maigre. Meilleure cuite." },
                 { "item_rabbitmeat_cooked", "Lapin rôti" },
                 { "item_rabbitmeat_cooked_desc", "Du lapin rôti à la broche. Léger, mais il donne des jambes." },
                 { "piece_rug_rabbit", "Petit tapis en peau de lapin" },
@@ -195,7 +195,7 @@ namespace Wildlife
 
         // --------------------------------------------------------------- boots
 
-        public const string BootsPrefab = "MeadowRabbitBoots";
+        public const string BootsPrefab = "RabbitBoots";
 
         /// <summary>
         /// Valheim has no feet slot, so the boots are leg gear (a re-tinted copy of the leather trousers). No
@@ -255,7 +255,7 @@ namespace Wildlife
             config.AddDropConfig(new DropConfig { Item = MeatPrefab, Chance = 100f, MinAmount = 1, MaxAmount = 2, LevelMultiplier = true });
             config.AddSpawnConfig(new SpawnConfig
             {
-                Name = "MeadowRabbit_Meadows",
+                Name = CreaturePrefab + "_Meadows",
                 Biome = Heightmap.Biome.Meadows,
                 SpawnChance = s_spawnChance.Value,
                 SpawnInterval = 90f,

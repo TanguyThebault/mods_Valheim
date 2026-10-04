@@ -19,7 +19,7 @@ namespace Wildlife
     public class Plugin : BaseUnityPlugin
     {
         public const string Guid = "lekinox.wildlife";
-        public const string Version = "0.19.0";
+        public const string Version = "0.20.0";
 
         internal static BepInEx.Logging.ManualLogSource Log;
         internal static Plugin Instance;

@@ -14,9 +14,9 @@ namespace Wildlife
     /// </summary>
     internal static class Mice
     {
-        public const string CreaturePrefab = "MeadowMouse";
-        public const string MeatPrefab = "MeadowMouseMeat";
-        public const string CookedPrefab = "MeadowMouseCooked";
+        public const string CreaturePrefab = "FieldMouse";
+        public const string MeatPrefab = "MouseMeat";
+        public const string CookedPrefab = "CookedMouseMeat";
 
         private static readonly Color MouseBrown = new Color(0.54f, 0.41f, 0.29f, 1f);
         private static ConfigEntry<float> s_scale;
@@ -52,7 +52,7 @@ namespace Wildlife
         {
             loc.AddTranslation("English", new Dictionary<string, string>
             {
-                { "enemy_meadowmouse", "Field mouse" },
+                { "enemy_fieldmouse", "Field mouse" },
                 { "item_mousemeat", "Mouse meat" },
                 { "item_mousemeat_desc", "Barely a mouthful. Better grilled." },
                 { "item_mousemeat_cooked", "Grilled mouse" },
@@ -60,7 +60,7 @@ namespace Wildlife
             });
             loc.AddTranslation("French", new Dictionary<string, string>
             {
-                { "enemy_meadowmouse", "Mulot" },
+                { "enemy_fieldmouse", "Mulot" },
                 { "item_mousemeat", "Viande de mulot" },
                 { "item_mousemeat_desc", "À peine une bouchée. Meilleure grillée." },
                 { "item_mousemeat_cooked", "Mulot grillé" },
@@ -114,7 +114,7 @@ namespace Wildlife
         {
             var config = new CreatureConfig
             {
-                Name = "$enemy_meadowmouse",
+                Name = "$enemy_fieldmouse",
                 Faction = Character.Faction.AnimalsVeg,
             };
             config.AddDropConfig(new DropConfig { Item = MeatPrefab, Chance = s_meatChance.Value, MinAmount = 1, MaxAmount = 1 });

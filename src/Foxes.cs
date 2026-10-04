@@ -18,11 +18,11 @@ namespace Wildlife
     /// </summary>
     internal static class Foxes
     {
-        public const string CreaturePrefab = "MeadowFox";
-        public const string MeatPrefab = "MeadowFoxMeat";
-        public const string CookedPrefab = "MeadowFoxCooked";
-        public const string PeltPrefab = "MeadowFoxPelt";
-        public const string CapePrefab = "MeadowFoxCape";
+        public const string CreaturePrefab = "Fox";
+        public const string MeatPrefab = "FoxMeat";
+        public const string CookedPrefab = "CookedFoxMeat";
+        public const string PeltPrefab = "FoxPelt";
+        public const string CapePrefab = "CapeFox";
 
         internal static readonly Color FoxRed = new Color(1.0f, 0.55f, 0.25f, 1f);
 
@@ -47,7 +47,7 @@ namespace Wildlife
         {
             loc.AddTranslation("English", new Dictionary<string, string>
             {
-                { "enemy_meadowfox", "Fox" },
+                { "enemy_fox", "Fox" },
                 { "item_foxmeat", "Fox meat" },
                 { "item_foxmeat_desc", "Dark, gamey meat. Cook it first." },
                 { "item_foxmeat_cooked", "Roasted fox" },
@@ -57,11 +57,11 @@ namespace Wildlife
                 { "item_foxcape", "Fox cape" },
                 { "item_foxcape_desc", "A red fox-fur cape. Light on the shoulders and quick in a brawl." },
                 { "se_foxcape", "Fox fur" },
-                { "se_fox_tooltip", "Stamina regen +10%, unarmed +10, unarmed damage +10%" },
+                { "se_fox_tooltip", "Stamina regen +10%, Unarmed skill +10, unarmed damage +10%" },
             });
             loc.AddTranslation("French", new Dictionary<string, string>
             {
-                { "enemy_meadowfox", "Renard" },
+                { "enemy_fox", "Renard" },
                 { "item_foxmeat", "Viande de renard" },
                 { "item_foxmeat_desc", "Une viande sombre au goût de gibier. À cuire d'abord." },
                 { "item_foxmeat_cooked", "Renard rôti" },
@@ -69,9 +69,9 @@ namespace Wildlife
                 { "item_foxpelt", "Peau de renard" },
                 { "item_foxpelt_desc", "Une épaisse fourrure rousse. On dit qu'elle se souvient encore de la chasse." },
                 { "item_foxcape", "Cape de renard" },
-                { "item_foxcape_desc", "Une cape en fourrure de renard. Légère sur les épaules et vive au corps à corps." },
+                { "item_foxcape_desc", "Une cape en fourrure de renard roux. Légère sur les épaules, vive dans la bagarre." },
                 { "se_foxcape", "Fourrure de renard" },
-                { "se_fox_tooltip", "Régén. d'endurance +10 %, main nue +10, dégâts à main nue +10 %" },
+                { "se_fox_tooltip", "Régén. d'endurance +10 %, compétence Mains nues +10, dégâts à mains nues +10 %" },
             });
         }
 
@@ -145,7 +145,7 @@ namespace Wildlife
         {
             var config = new CreatureConfig
             {
-                Name = "$enemy_meadowfox",
+                Name = "$enemy_fox",
                 Faction = Character.Faction.AnimalsVeg,
             };
             config.AddDropConfig(new DropConfig { Item = MeatPrefab, Chance = 100f, MinAmount = 1, MaxAmount = 2, LevelMultiplier = true });

@@ -15,8 +15,8 @@ namespace Wildlife
     /// </summary>
     internal static class Sea
     {
-        public const string WhalePrefab = "OceanWhale";
-        public const string OrcaPrefab = "OceanOrca";
+        public const string WhalePrefab = "Whale";
+        public const string OrcaPrefab = "Orca";
 
         private static ConfigEntry<int> s_whaleMax, s_orcaMax;
         private static ConfigEntry<float> s_whaleLength, s_orcaLength, s_whaleChance, s_orcaChance, s_blowVolume;
@@ -36,8 +36,8 @@ namespace Wildlife
 
         public static void AddTranslations(CustomLocalization loc)
         {
-            loc.AddTranslation("English", new Dictionary<string, string> { { "ocean_whale", "Humpback whale" }, { "ocean_orca", "Orca" } });
-            loc.AddTranslation("French", new Dictionary<string, string> { { "ocean_whale", "Baleine à bosse" }, { "ocean_orca", "Orque" } });
+            loc.AddTranslation("English", new Dictionary<string, string> { { "whale", "Humpback whale" }, { "orca", "Orca" } });
+            loc.AddTranslation("French", new Dictionary<string, string> { { "whale", "Baleine à bosse" }, { "orca", "Orque" } });
         }
 
         public static void Register()
@@ -53,7 +53,7 @@ namespace Wildlife
             Blows["orca"] = Look.LoadClips("sfx_sea", "orca_blow");
             var mist = FindMistMaterial();
 
-            Make(WhalePrefab, "whale", "$ocean_whale", template, mist, s_whaleLength.Value, new SeaSwimmer.Settings
+            Make(WhalePrefab, "whale", "$whale", template, mist, s_whaleLength.Value, new SeaSwimmer.Settings
             {
                 Speed = 2.4f, TurnRate = 12f, Depth = 7f, MinDepth = 14f, SurfaceEvery = 55f, SurfaceFor = 10f,
                 BreachChance = 0f, Wander = 25f, Species = "whale",
@@ -61,7 +61,7 @@ namespace Wildlife
             {
                 a.TipAmplitude = 0.10f; a.FlukePitch = 22f; a.WaveNumber = 6f; a.Strouhal = 0.37f; a.MinFrequency = 0.14f; a.LengthMeters = s_whaleLength.Value; a.Horizontal = 3f; a.RigidFront = 0.45f; a.HeadHeave = 0.015f;
             }, spout: new Vector2(6.5f, 1.4f));
-            Make(OrcaPrefab, "orca", "$ocean_orca", template, mist, s_orcaLength.Value, new SeaSwimmer.Settings
+            Make(OrcaPrefab, "orca", "$orca", template, mist, s_orcaLength.Value, new SeaSwimmer.Settings
             {
                 Speed = 5.5f, TurnRate = 32f, Depth = 4f, MinDepth = 8f, SurfaceEvery = 28f, SurfaceFor = 5f,
                 BreachChance = 0.3f, Wander = 35f, Species = "orca",

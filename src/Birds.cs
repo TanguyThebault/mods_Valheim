@@ -22,8 +22,8 @@ namespace Wildlife
     /// </summary>
     internal static class Birds
     {
-        public const string SparrowPrefab = "MeadowSparrow";
-        public const string OwlPrefab = "MeadowOwl";
+        public const string SparrowPrefab = "Sparrow";
+        public const string OwlPrefab = "Owl";
 
         private static ConfigEntry<float> s_sparrowScale;
         private static ConfigEntry<int> s_sparrowMax;
@@ -63,11 +63,11 @@ namespace Wildlife
         {
             loc.AddTranslation("English", new Dictionary<string, string>
             {
-                { "sparrow", "Sparrow" }, { "meadow_owl", "Owl" },
+                { "sparrow", "Sparrow" }, { "owl", "Owl" },
             });
             loc.AddTranslation("French", new Dictionary<string, string>
             {
-                { "sparrow", "Moineau" }, { "meadow_owl", "Chouette" },
+                { "sparrow", "Moineau" }, { "owl", "Chouette" },
             });
         }
 
@@ -153,7 +153,7 @@ namespace Wildlife
                 Look.Paint(go, Look.Mask("owl"), new Color(0.50f, 0.36f, 0.22f));
             }
             go.AddComponent<OwlHunter>();
-            Finish(go, "$meadow_owl", "owl", restAtNight: false, restByDay: true);
+            Finish(go, "$owl", "owl", restAtNight: false, restByDay: true);
             Spawns.AddDespawn(go);
             AddSpawn(go, Heightmap.Biome.Meadows | Heightmap.Biome.BlackForest, s_owlMax.Value, 1, s_owlChance.Value, day: true, night: true);
         }

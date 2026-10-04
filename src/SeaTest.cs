@@ -93,7 +93,7 @@ namespace Wildlife
                     int whales = args.Length > 1 ? (int)Parse(args[1], 1) : 1;
                     int orcas = args.Length > 2 ? (int)Parse(args[2], 2) : 2;
                     int n = 0;
-                    foreach (var name in Enumerable.Repeat("OceanWhale", whales).Concat(Enumerable.Repeat("OceanOrca", orcas)))
+                    foreach (var name in Enumerable.Repeat(Sea.WhalePrefab, whales).Concat(Enumerable.Repeat(Sea.OrcaPrefab, orcas)))
                     {
                         var prefab = ZNetScene.instance.GetPrefab(name);
                         if (prefab == null)
