@@ -30,6 +30,8 @@ namespace Wildlife
         private static ConfigEntry<int> s_crowMax;
         private static ConfigEntry<float> s_owlVolume;
         private static ConfigEntry<int> s_owlMax;
+        private static ConfigEntry<float> s_sparrowChance, s_crowChance, s_owlChance;
+        internal static ConfigEntry<float> OwlScareDistance;
         internal static ConfigEntry<float> SongVolume;
         internal static ConfigEntry<float> SongInterval;
         internal static ConfigEntry<float> MinClearance;
@@ -43,8 +45,13 @@ namespace Wildlife
             SongVolume = config.Bind("Sparrow", "SongVolume", 0.5f, "Song volume, 0-1 (live).");
             SongInterval = config.Bind("Sparrow", "SongInterval", 11f,
                 "Average seconds between two songs of a perched sparrow; about 2.5x longer in flight (live).");
+            s_sparrowChance = config.Bind("Sparrow", "SpawnChance", 25f, "Spawn chance per spawn check (every 60 s), % (restart).");
             s_crowMax = config.Bind("Crow", "MaxSpawned", 3, "Max vanilla crows around a player in the Black Forest (restart).");
+            s_crowChance = config.Bind("Crow", "SpawnChance", 16.7f, "Spawn chance per spawn check (every 60 s), % (restart).");
             s_owlMax = config.Bind("Owl", "MaxSpawned", 1, "Max owls around a player (restart).");
+            s_owlChance = config.Bind("Owl", "SpawnChance", 25f, "Spawn chance per spawn check (every 60 s), % (restart).");
+            OwlScareDistance = config.Bind("Owl", "ScareDistance", 20f,
+                "A player closer than this makes the owl fly off, and it won't perch that close to one, m (live).");
             s_owlVolume = config.Bind("Owl", "Volume", 0.7f, "Hoot volume, 0-1 (live).");
             s_owlFlip = config.Bind("Owl", "FlipFlyingModel", false,
                 "Turn the flying owl model around if it flies backwards (restart).");
@@ -107,13 +114,15 @@ namespace Wildlife
             Reshape(go, beak: 0.55f, tail: 0.85f, width: 1.1f, head: 1.05f);
             Look.Paint(go, Look.Mask("sparrow"), new Color(0.55f, 0.40f, 0.26f));
             Finish(go, "$sparrow", "sparrow", restAtNight: true, restByDay: false);
-            AddSpawn(go, Heightmap.Biome.Meadows | Heightmap.Biome.Plains, s_sparrowMax.Value, 3, day: true, night: false);
+            Spawns.AddDespawn(go);
+            AddSpawn(go, Heightmap.Biome.Meadows | Heightmap.Biome.Plains, s_sparrowMax.Value, 3, s_sparrowChance.Value, day: true, night: false);
         }
 
         /// <summary>The vanilla crow (its own model, calls and feathers), spawned in the Black Forest.</summary>
         private static void SpawnVanillaCrows(GameObject crow)
         {
-            AddSpawn(crow, Heightmap.Biome.BlackForest, s_crowMax.Value, 2, day: true, night: false);
+            Spawns.AddDespawn(crow); // the game itself never spawns crows: all of them are ours
+            AddSpawn(crow, Heightmap.Biome.BlackForest, s_crowMax.Value, 2, s_crowChance.Value, day: true, night: false);
             Plugin.Log.LogInfo("Vanilla Crow spawns added to the Black Forest");
         }
 
@@ -131,7 +140,7 @@ namespace Wildlife
             bird.m_sailDuration = 2.5f;  // long silent glides
             bird.m_landChance = 0.4f;
             bird.m_landDuration = 12f;
-            bird.m_avoidDangerDistance = 8f;
+            bird.m_avoidDangerDistance = OwlScareDistance.Value; // kept live by BirdBehaviour
             foreach (var d in go.GetComponentsInChildren<Destructible>(true))
             {
                 d.m_health = 15f;
@@ -145,7 +154,8 @@ namespace Wildlife
             }
             go.AddComponent<OwlHunter>();
             Finish(go, "$meadow_owl", "owl", restAtNight: false, restByDay: true);
-            AddSpawn(go, Heightmap.Biome.Meadows | Heightmap.Biome.BlackForest, s_owlMax.Value, 1, day: true, night: true);
+            Spawns.AddDespawn(go);
+            AddSpawn(go, Heightmap.Biome.Meadows | Heightmap.Biome.BlackForest, s_owlMax.Value, 1, s_owlChance.Value, day: true, night: true);
         }
 
         /// <summary>Generated owl models (fal Trellis): a static perched owl, and a flying owl skinned to the crow's wings.</summary>
@@ -281,7 +291,7 @@ namespace Wildlife
             return result;
         }
 
-        private static void AddSpawn(GameObject prefab, Heightmap.Biome biome, int max, int group, bool day, bool night)
+        private static void AddSpawn(GameObject prefab, Heightmap.Biome biome, int max, int group, float chance, bool day, bool night)
         {
             SpawnListPatch.Ensure();
             SpawnListPatch.List.m_spawners.Add(new SpawnSystem.SpawnData
@@ -291,7 +301,7 @@ namespace Wildlife
                 m_biome = biome,
                 m_maxSpawned = max,
                 m_spawnInterval = 60f,
-                m_spawnChance = 50f,
+                m_spawnChance = chance,
                 m_spawnDistance = 20f,
                 m_groupSizeMin = 1,
                 m_groupSizeMax = group,
@@ -604,6 +614,8 @@ namespace Wildlife
                 return;
 
             var hunter = bird.GetComponent<OwlHunter>();
+            if (hunter != null)
+                bird.m_avoidDangerDistance = Birds.OwlScareDistance.Value;
             bool hunting = hunter != null && hunter.Hunting;
             bool resting = perch.Resting() && !hunting;
             bird.m_landDuration = resting ? 1e6f : perch.LandDuration; // resting: only danger makes it fly

@@ -495,3 +495,39 @@ vérifications insuffisantes). Nouveau pipeline, avec une porte de validation à
 - Vérification en jeu : `ta_sea film [s] [whale|orca]` (caméra en orbite, animal près de la surface) + um win record ;
   les vidéos sont surexposées par la capture (pas par le jeu).
 - Coût fal de l'étape : ~0,42 $.
+
+## v0.18.0 (2026-10-04) : spawns plus rares et mieux répartis, chouette farouche, paix avec le vanilla
+- Taux de spawn divisés par 2 (lapin 20 %, renard 10 %, mulot 25 %, moineau 25 %, chouette 25 %, baleine
+  5 %, orque 6 %) et par 3 pour les corbeaux de la Forêt Noire (16,7 %). Nouvelles clés SpawnChance pour
+  Sparrow, Crow, Owl et Mouse ; .cfg live mis à jour pour Fox, Rabbit, Whale et Orca.
+- Effet « tout à l'entrée du biome » : SpawnSystem.UpdateSpawnList compte les ZDO de l'espèce dans les zones
+  voisines (FindSectorObjects) et s'arrête à m_maxSpawned ; une zone jamais visitée fait d'un coup jusqu'à
+  max tentatives (horloge à 0). Nos créatures, sauvegardées dans le monde, restaient là où elles étaient
+  apparues. Ajout de FarDespawn (Spawns.cs) : le propriétaire supprime une créature à plus de 100 m de tout
+  joueur pendant 30 s (hors apprivoisées ; pas les baleines/orques). [Spawns] DespawnDistance/DespawnDelay.
+  Hypothèse à confirmer en jeu.
+- Chouette : [Owl] ScareDistance = 20 m (8 avant), appliqué en live dans BirdBehaviour (m_avoidDangerDistance,
+  qui sert aussi à refuser les perchoirs proches d'un joueur).
+- Interactions.cs : postfix BaseAI.IsEnemy (priorité basse, après FoxEnemies). Créatures vanilla et nôtres
+  (lapin, mulot, renard) s'ignorent. Exceptions : joueurs, apprivoisés, renard provoqué, notre chaîne
+  alimentaire, et [Interactions] VanillaHunters (liste de prefabs, vide par défaut). Les oiseaux ne sont pas
+  des Character : déjà ignorés.
+
+## v0.19.0 (2026-10-04) : retour de playtest de la v0.18
+- Disparition peu effective : le log ne montrait que 4 mulots supprimés. Le jeu n'instancie les objets qu'à
+  environ 2 zones d'un joueur ; un animal laissé derrière était déchargé (ZDO sauvegardée) avant ses 30 s à
+  plus de 100 m, donc jamais supprimé. Ajout d'un balayage serveur toutes les 20 s
+  (ZDOMan.GetAllZDOsWithPrefabIterative, quelques secteurs par image) : les ZDO de nos espèces non chargées,
+  sans propriétaire ou à nous, à plus de DespawnDistance de tout joueur, sont détruites (SetOwner puis
+  DestroyZDO). Animaux apprivoisés exclus. DespawnDistance passe à 150 m (.cfg live modifié).
+- Étoiles : le jeu tire 10 % par niveau, multiplié par le secteur de biome. Prefix sur
+  SpawnSystem.GetLevelUpChance : nos espèces utilisent [Spawns] StarChance = 3 %.
+- Lapins violets : les LevelEffects du lièvre décalent la teinte (_Hue) du matériau principal, donc de notre
+  fourrure. Look.NaturalLevels (lapin, mulot, renard) : teinte 0, pas d'émissif ni d'objet de niveau,
+  fourrure un peu plus sombre et saturée par étoile (+0,05 sat., -0,08 valeur). La taille reste. Les valeurs
+  vanilla d'origine sont écrites dans le log (Debug). Les oiseaux n'ont pas de niveaux.
+- Renard : il fuit au pas de course dès qu'il voit ou entend un joueur à moins de [Fox] FleeDistance = 30 m
+  (ou à moins de 8 m), jusqu'à 10 m de plus. Cible de fuite à 25 m dans un cône opposé, élargi si de l'eau
+  barre la route. KeepAwayDistance supprimé. Toujours : un renard frappé riposte.
+- Renard à la nage : m_swimDepth du loup non mis à l'échelle (tête sous l'eau). Maintenant
+  loup x échelle x 0,75, ou [Fox] SwimDepth. Valeur écrite dans le log.

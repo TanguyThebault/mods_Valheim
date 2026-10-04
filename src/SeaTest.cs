@@ -21,7 +21,7 @@ namespace Wildlife
         private static Coroutine s_log;
 
         public override string Name => "ta_sea";
-        public override string Help => "ta_sea goto [depth] | spawn [whales] [orcas] | log [seconds|off] | film [seconds] - sea test bench";
+        public override string Help => "ta_sea goto [depth] | land | spawn [whales] [orcas] | log [seconds|off] | film [seconds] - sea test bench";
 
         public override void Run(string[] args)
         {
@@ -45,7 +45,7 @@ namespace Wildlife
                         {
                             float a = i * Mathf.PI * 2f / steps;
                             var p = start + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
-                            if (ZoneSystem.instance.GetGroundHeight(p) < water - depth)
+                            if (WorldGenerator.instance.GetHeight(p.x, p.z) < water - depth)
                             {
                                 p.y = water + 6f;
                                 player.TeleportTo(p, player.transform.rotation, true);
@@ -57,6 +57,35 @@ namespace Wildlife
                         }
                     }
                     Print("ta_sea: no deep water within 4 km");
+                    return;
+                }
+                case "land":
+                {
+                    // back to dry, fairly flat ground (and off with flying / god mode)
+                    var start = player.transform.position;
+                    for (float r = 0f; r < 4000f; r += 25f)
+                    {
+                        int steps = Mathf.Max(1, (int)(r / 12f));
+                        for (int i = 0; i < steps; i++)
+                        {
+                            float a = i * Mathf.PI * 2f / steps;
+                            var p = start + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+                            // the world generator knows the terrain everywhere (loaded zones or not)
+                            float g = WorldGenerator.instance.GetHeight(p.x, p.z);
+                            float g2 = WorldGenerator.instance.GetHeight(p.x + 3f, p.z + 3f);
+                            if (g > water + 3f && Mathf.Abs(g - g2) < 1.5f)
+                            {
+                                p.y = g + 0.5f;
+                                Traverse.Create(player).Field("m_debugFly").SetValue(false);
+                                player.SetGodMode(false);
+                                player.TeleportTo(p, player.transform.rotation, true);
+                                Plugin.Instance.StartCoroutine(SaveSoon());   // keep the spot if the game is closed
+                                Print("ta_sea: back on land at " + p.ToString("F0") + " (" + r + " m away)");
+                                return;
+                            }
+                        }
+                    }
+                    Print("ta_sea: no land within 4 km");
                     return;
                 }
                 case "spawn":
@@ -121,6 +150,13 @@ namespace Wildlife
                 }
             }
             Console.instance.Print(Help);
+        }
+
+        private static IEnumerator SaveSoon()
+        {
+            yield return new WaitForSeconds(6f);
+            if (Game.instance != null) Game.instance.SavePlayerProfile(true);
+            Plugin.Log.LogInfo("ta_sea: player profile saved");
         }
 
         private static IEnumerator Log(float every)

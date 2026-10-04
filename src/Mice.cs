@@ -22,6 +22,7 @@ namespace Wildlife
         private static ConfigEntry<float> s_scale;
         private static ConfigEntry<float> s_meatChance;
         private static ConfigEntry<int> s_maxSpawned;
+        private static ConfigEntry<float> s_spawnChance;
         private static ConfigEntry<Vector3> s_earScale;
         private static ConfigEntry<Vector3> s_tailScale;
         private static ConfigEntry<float> s_fitScale, s_fitLift, s_fitForward, s_fitPitch;
@@ -35,6 +36,7 @@ namespace Wildlife
             s_scale = config.Bind("Mouse", "Scale", 0.88f, "Size relative to the vanilla hare (restart).");
             s_meatChance = config.Bind("Mouse", "MeatChance", 15f, "Chance (%) that a mouse leaves meat (restart).");
             s_maxSpawned = config.Bind("Mouse", "MaxSpawned", 4, "Max mice around a player (restart).");
+            s_spawnChance = config.Bind("Mouse", "SpawnChance", 25f, "Spawn chance per spawn check (every 60 s), % (restart).");
             s_earScale = config.Bind("Mouse", "EarScale", new Vector3(0.55f, 0.45f, 0.55f), "Scale of the ear bones (restart).");
             s_useRig = config.Bind("MouseRig", "Enabled", true,
                 "Use our own mouse skeleton and procedural animation (off: the generated mouse on the hare skeleton) (restart).");
@@ -120,7 +122,7 @@ namespace Wildlife
             {
                 Name = CreaturePrefab + "_Meadows_BlackForest",
                 Biome = Heightmap.Biome.Meadows | Heightmap.Biome.BlackForest,
-                SpawnChance = 50f,
+                SpawnChance = s_spawnChance.Value,
                 SpawnInterval = 60f,
                 SpawnDistance = 25f,
                 MaxSpawned = s_maxSpawned.Value,
@@ -151,6 +153,7 @@ namespace Wildlife
             {
                 Proportions(go);
                 Look.Paint(go, mask, MouseBrown);
+                Look.NaturalLevels(go);
             }
 
             var character = go.GetComponent<Character>();
@@ -199,6 +202,7 @@ namespace Wildlife
             }
 
             go.AddComponent<MouseTag>();
+            Spawns.AddDespawn(go);
             CreatureManager.Instance.AddCreature(mouse);
             Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Hare skeleton), meat " + s_meatChance.Value + "%");
         }

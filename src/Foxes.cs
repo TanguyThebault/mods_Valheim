@@ -29,14 +29,18 @@ namespace Wildlife
         private static ConfigEntry<float> s_scale;
         private static ConfigEntry<float> s_biteDamage;
         private static ConfigEntry<float> s_spawnChance;
-        internal static ConfigEntry<float> KeepAwayDistance;
+        internal static ConfigEntry<float> FleeDistance;
+        private static ConfigEntry<float> s_swimDepth;
 
         public static void BindConfig(ConfigFile config)
         {
             s_scale = config.Bind("Fox", "Scale", 0.6f, "Size relative to the vanilla wolf (restart).");
             s_biteDamage = config.Bind("Fox", "BiteDamage", 8f, "Total damage of a fox bite (restart).");
-            s_spawnChance = config.Bind("Fox", "SpawnChance", 20f, "Spawn chance per spawn check, % (restart).");
-            KeepAwayDistance = config.Bind("Fox", "KeepAwayDistance", 10f, "Foxes back off from players closer than this, m (live).");
+            s_spawnChance = config.Bind("Fox", "SpawnChance", 10f, "Spawn chance per spawn check, % (restart).");
+            FleeDistance = config.Bind("Fox", "FleeDistance", 30f,
+                "A fox that sees or hears a player within this distance runs away, until 10 m further (live).");
+            s_swimDepth = config.Bind("Fox", "SwimDepth", -1f,
+                "How deep the fox floats when swimming, m (-1: the wolf's, scaled to the fox and a bit higher) (restart).");
         }
 
         public static void AddTranslations(CustomLocalization loc)
@@ -171,6 +175,7 @@ namespace Wildlife
             go.transform.localScale *= s_scale.Value;
             var mask = Look.Mask("fox");
             Look.Paint(go, mask, FoxRed);
+            Look.NaturalLevels(go);
 
             // Not a pet, not a breeder.
             foreach (var c in go.GetComponents<Tameable>()) Object.DestroyImmediate(c);
@@ -184,6 +189,10 @@ namespace Wildlife
             character.m_acceleration *= 1.3f;
             character.m_runTurnSpeed *= 1.4f;
             character.m_group = "";
+            // The wolf's swim depth, unscaled, left the small fox's head under water.
+            float wolfSwim = character.m_swimDepth;
+            character.m_swimDepth = s_swimDepth.Value >= 0f ? s_swimDepth.Value : wolfSwim * s_scale.Value * 0.75f;
+            Plugin.Log.LogInfo("Fox swim depth " + character.m_swimDepth + " (wolf " + wolfSwim + ")");
 
             var ai = go.GetComponent<MonsterAI>();
             if (ai != null)
@@ -213,6 +222,7 @@ namespace Wildlife
             GiveVoice(character, ai, humanoid);
 
             go.AddComponent<FoxTag>();
+            Spawns.AddDespawn(go);
             CreatureManager.Instance.AddCreature(fox);
             Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Wolf clone), AI " + (ai != null ? "MonsterAI" : "none") +
                                ", attacks " + (humanoid?.m_defaultItems?.Length ?? 0));
@@ -413,7 +423,10 @@ namespace Wildlife
         private float _provokedAt = -999f;
         private bool _hungry;
         private float _timer;
-        private bool _keepingAway;
+        private Player _fleeingFrom;
+        private float _nextLook;
+        private Vector3 _fleeTarget;
+        private float _nextFleePick;
 
         public bool Hungry => _hungry;
 
@@ -475,18 +488,67 @@ namespace Wildlife
             return _provoker != null && _provoker == other && Time.time - _provokedAt < ProvokedTime;
         }
 
-        /// <summary>The player to back away from, with hysteresis (starts at KeepAwayDistance, stops 6 m further).</summary>
+        /// <summary>
+        /// The player to run from: one it sees or hears within FleeDistance (or any closer than 8 m). It keeps
+        /// running until that player is 10 m beyond FleeDistance.
+        /// </summary>
         internal Player Threat()
         {
             if (_provoker != null && Time.time - _provokedAt < ProvokedTime)
             {
-                _keepingAway = false;   // provoked: it fights back instead
+                _fleeingFrom = null;   // provoked: it fights back instead
                 return null;
             }
-            float range = Foxes.KeepAwayDistance.Value + (_keepingAway ? 6f : 0f);
-            var p = Player.GetClosestPlayer(transform.position, range);
-            _keepingAway = p != null;
-            return p;
+            float range = Foxes.FleeDistance.Value;
+            if (_fleeingFrom != null)
+            {
+                if (!_fleeingFrom.IsDead() &&
+                    Vector3.Distance(_fleeingFrom.transform.position, transform.position) < range + 10f)
+                    return _fleeingFrom;
+                _fleeingFrom = null;
+            }
+            if (Time.time < _nextLook)
+                return null;
+            _nextLook = Time.time + 0.5f;
+            foreach (var p in Player.GetAllPlayers())
+            {
+                if (p == null || p.IsDead())
+                    continue;
+                float d = Vector3.Distance(p.transform.position, transform.position);
+                if (d > range)
+                    continue;
+                if (d < 8f || (_ai != null && _ai.CanSenseTarget(p)))
+                {
+                    _fleeingFrom = p;
+                    _nextFleePick = 0f;
+                    return p;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>A point 25 m away from the threat (within a cone, avoiding water), picked again every 2 s.</summary>
+        internal Vector3 FleeTarget(Vector3 from)
+        {
+            Vector3 pos = transform.position;
+            if (Time.time < _nextFleePick && (new Vector2(_fleeTarget.x - pos.x, _fleeTarget.z - pos.z)).magnitude > 3f)
+                return _fleeTarget;
+            _nextFleePick = Time.time + 2f;
+            Vector3 away = pos - from;
+            away.y = 0f;
+            away = away.sqrMagnitude > 0.01f ? away.normalized : transform.forward;
+            _fleeTarget = pos + away * 25f;
+            for (int i = 0; i < 8; i++)
+            {
+                float spread = 35f + 20f * i;   // widen the cone when the way out is wet
+                Vector3 t = pos + Quaternion.Euler(0f, Random.Range(-spread, spread), 0f) * away * 25f;
+                if (ZoneSystem.instance == null || ZoneSystem.instance.GetSolidHeight(t) > 30.5f)
+                {
+                    _fleeTarget = t;
+                    break;
+                }
+            }
+            return _fleeTarget;
         }
     }
 
@@ -527,7 +589,7 @@ namespace Wildlife
     }
 
     /// <summary>
-    /// An unprovoked fox backs away from a nearby player. Done in a prefix that replaces MonsterAI's own
+    /// An unprovoked fox runs away from a player it notices (FoxTag.Threat). Done in a prefix that replaces MonsterAI's own
     /// decision for that frame (the base BaseAI update still runs): the old postfix let MonsterAI walk
     /// somewhere and then overrode it with a flee every frame, which made the fox zig-zag on the spot.
     /// </summary>
@@ -536,8 +598,9 @@ namespace Wildlife
     {
         private static readonly System.Func<BaseAI, float, bool> s_baseUpdate =
             AccessTools.MethodDelegate<System.Func<BaseAI, float, bool>>(AccessTools.Method(typeof(BaseAI), nameof(BaseAI.UpdateAI)), null, false);
-        private static readonly System.Func<BaseAI, float, Vector3, bool> s_flee =
-            AccessTools.MethodDelegate<System.Func<BaseAI, float, Vector3, bool>>(AccessTools.Method(typeof(BaseAI), "Flee"), null, false);
+        private static readonly System.Func<BaseAI, float, Vector3, float, bool, bool> s_moveTo =
+            AccessTools.MethodDelegate<System.Func<BaseAI, float, Vector3, float, bool, bool>>(
+                AccessTools.Method(typeof(BaseAI), "MoveTo", new[] { typeof(float), typeof(Vector3), typeof(float), typeof(bool) }), null, false);
 
         private static bool Prefix(MonsterAI __instance, float dt, ref bool __result)
         {
@@ -556,7 +619,7 @@ namespace Wildlife
                 return true;
             __result = s_baseUpdate(ai, dt);
             if (__result)
-                s_flee(ai, dt, threat.transform.position);
+                s_moveTo(ai, dt, fox.FleeTarget(threat.transform.position), 1f, true); // at a run
             return false;
         }
     }

@@ -39,7 +39,7 @@ namespace Wildlife
             s_calmSpeed = config.Bind("Rabbit", "CalmSpeed", 2.2f, "Speed when not frightened (vanilla hare: 4) (restart).");
             s_idleInterval = config.Bind("Rabbit", "IdleInterval", 9f, "Seconds between two small moves when calm (restart).");
             s_idleRange = config.Bind("Rabbit", "IdleRange", 4f, "Length of a calm move, m (restart).");
-            s_spawnChance = config.Bind("Rabbit", "SpawnChance", 40f, "Spawn chance per spawn check, % (restart).");
+            s_spawnChance = config.Bind("Rabbit", "SpawnChance", 20f, "Spawn chance per spawn check, % (restart).");
             s_maxSpawned = config.Bind("Rabbit", "MaxSpawned", 3, "Max rabbits around a player (restart).");
         }
 
@@ -281,6 +281,7 @@ namespace Wildlife
             // Own coat (grey-brown, cream belly, white cottontail) and own ragdoll, nothing of the hare left.
             var mask = Look.Mask("rabbit");
             Look.Paint(go, mask, s_furTint.Value);
+            Look.NaturalLevels(go);
 
             var character = go.GetComponent<Character>();
             character.m_name = config.Name;   // shown above the health bar
@@ -308,6 +309,7 @@ namespace Wildlife
             ai.m_timeToSafe = 6f;
 
             go.AddComponent<RabbitTag>();
+            Spawns.AddDespawn(go);
 
             CreatureManager.Instance.AddCreature(rabbit);
             Plugin.Log.LogInfo("Registered " + CreaturePrefab + " (Hare clone): run " + character.m_runSpeed.ToString("F1") +

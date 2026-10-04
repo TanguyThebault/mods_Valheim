@@ -19,7 +19,7 @@ namespace Wildlife
     public class Plugin : BaseUnityPlugin
     {
         public const string Guid = "lekinox.wildlife";
-        public const string Version = "0.12.0";
+        public const string Version = "0.19.0";
 
         internal static BepInEx.Logging.ManualLogSource Log;
         internal static Plugin Instance;
@@ -40,6 +40,8 @@ namespace Wildlife
             Foxes.BindConfig(Config);
             Mice.BindConfig(Config);
             Sea.BindConfig(Config);
+            Spawns.BindConfig(Config);
+            Interactions.BindConfig(Config);
             _configStamp = System.IO.File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
             var loc = LocalizationManager.Instance.GetLocalization();
@@ -66,6 +68,9 @@ namespace Wildlife
             long t = Perf.Begin();
             try { CheckConfig(); }
             finally { Perf.End("Plugin.Update (config check)", t); }
+            t = Perf.Begin();
+            try { Spawns.Tick(); }
+            finally { Perf.End("Spawns.Tick", t); }
         }
 
         private void CheckConfig()

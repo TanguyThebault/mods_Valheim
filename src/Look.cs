@@ -41,6 +41,32 @@ namespace Wildlife
             return tex;
         }
 
+        /// <summary>
+        /// Starred creatures: the vanilla LevelEffects shift the hue of the main material (a hare with one star
+        /// turns purple on our brown coat). Ours keep their coat: no hue shift, no glow, no swapped model, only a
+        /// slightly darker and richer fur per star. The size bump stays.
+        /// </summary>
+        public static void NaturalLevels(GameObject go)
+        {
+            foreach (var le in go.GetComponentsInChildren<LevelEffects>(true))
+            {
+                for (int i = 0; i < le.m_levelSetups.Count; i++)
+                {
+                    var s = le.m_levelSetups[i];
+                    Plugin.Log.LogDebug(go.name + " star " + (i + 1) + " was: scale " + s.m_scale + ", hue " + s.m_hue +
+                                        ", saturation " + s.m_saturation + ", value " + s.m_value +
+                                        (s.m_setEmissiveColor ? ", emissive " + s.m_emissiveColor : "") +
+                                        (s.m_enableObject != null ? ", object " + s.m_enableObject.name : ""));
+                    s.m_hue = 0f;
+                    s.m_saturation = 0.05f * (i + 1);
+                    s.m_value = -0.08f * (i + 1);
+                    s.m_setEmissiveColor = false;
+                    s.m_enableObject = null;
+                }
+                le.m_baseEnableObject = null;
+            }
+        }
+
         /// <summary>Clones every material of go and gives it the mask x shading texture. Falls back to a tint.</summary>
         public static void Paint(GameObject go, Texture2D mask, Color fallbackTint)
         {

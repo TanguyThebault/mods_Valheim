@@ -26,10 +26,10 @@ namespace Wildlife
         public static void BindConfig(ConfigFile config)
         {
             s_whaleMax = config.Bind("Whale", "MaxSpawned", 1, "Max whales around a player (restart).");
-            s_whaleChance = config.Bind("Whale", "SpawnChance", 10f, "Chance per spawn check (every 15 min), % (restart).");
+            s_whaleChance = config.Bind("Whale", "SpawnChance", 5f, "Chance per spawn check (every 15 min), % (restart).");
             s_whaleLength = config.Bind("Whale", "Length", 14f, "Whale length, m (restart).");
             s_orcaMax = config.Bind("Orca", "MaxSpawned", 3, "Max orcas around a player (restart).");
-            s_orcaChance = config.Bind("Orca", "SpawnChance", 12f, "Chance per spawn check (every 15 min), % (restart).");
+            s_orcaChance = config.Bind("Orca", "SpawnChance", 6f, "Chance per spawn check (every 15 min), % (restart).");
             s_orcaLength = config.Bind("Orca", "Length", 7f, "Orca length, m (restart).");
             s_blowVolume = config.Bind("Sea", "BlowVolume", 0.9f, "Volume of the blowhole spout, 0-1 (live).");
         }
