@@ -24,7 +24,6 @@ namespace LegendaryWeapons
             new Dictionary<Character, ThrowingAxeProjectile>();
         private static readonly AccessTools.FieldRef<VisEquipment, GameObject> s_rightItemInstance =
             AccessTools.FieldRefAccess<VisEquipment, GameObject>("m_rightItemInstance");
-        private static int s_mask;
 
         private const float MaxFlightTime = 8f;
         private const float CatchDistance = 0.6f;
@@ -60,11 +59,6 @@ namespace LegendaryWeapons
         public void Setup(Character owner, Vector3 velocity, float hitNoise, HitData hitData,
             ItemDrop.ItemData item, ItemDrop.ItemData ammo)
         {
-            if (s_mask == 0)
-                s_mask = LayerMask.GetMask("Default", "static_solid", "Default_small", "piece", "piece_nonsolid",
-                    "terrain", "character", "character_net", "character_ghost", "hitbox", "character_noenv",
-                    "vehicle");
-
             _owner = owner;
             _hitData = hitData;
             _item = item;
@@ -116,7 +110,7 @@ namespace LegendaryWeapons
 
             // Lay it flat: the thinnest axis of the model (blade thickness) points up, and spin around the
             // model's centre rather than the grip.
-            if (LocalBounds(copy.transform, pivot, out var b))
+            if (Geometry.LocalBounds(copy.transform, pivot, out var b))
             {
                 Vector3 e = b.extents;
                 Vector3 thin = e.x <= e.y && e.x <= e.z ? Vector3.right : (e.y <= e.z ? Vector3.up : Vector3.forward);
@@ -126,30 +120,6 @@ namespace LegendaryWeapons
                 Plugin.Log.LogDebug("Visual extents " + e + ", thin axis " + thin);
             }
             _visual = pivot;
-        }
-
-        private static bool LocalBounds(Transform root, Transform space, out Bounds bounds)
-        {
-            bounds = default;
-            bool any = false;
-            foreach (var r in root.GetComponentsInChildren<Renderer>(true))
-            {
-                Mesh mesh = null;
-                if (r is SkinnedMeshRenderer smr) mesh = smr.sharedMesh;
-                else if (r is MeshRenderer) mesh = r.GetComponent<MeshFilter>()?.sharedMesh;
-                if (mesh == null)
-                    continue;
-                Bounds mb = mesh.bounds;
-                for (int i = 0; i < 8; i++)
-                {
-                    Vector3 corner = mb.center + Vector3.Scale(mb.extents,
-                        new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
-                    Vector3 p = space.InverseTransformPoint(r.transform.TransformPoint(corner));
-                    if (!any) { bounds = new Bounds(p, Vector3.zero); any = true; }
-                    else bounds.Encapsulate(p);
-                }
-            }
-            return any;
         }
 
         private void Update()
@@ -239,12 +209,12 @@ namespace LegendaryWeapons
         private bool FirstObstacle(Vector3 from, Vector3 dir, float range, out RaycastHit first)
         {
             first = default;
-            var hits = Physics.SphereCastAll(from, Plugin.HitRadius.Value, dir, range, s_mask,
+            var hits = Physics.SphereCastAll(from, Plugin.HitRadius.Value, dir, range, Geometry.HitMask,
                 QueryTriggerInteraction.Collide);
             System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
             foreach (var h in hits)
             {
-                if (IsObstacle(h.collider))
+                if (Geometry.IsObstacle(_owner, h.collider))
                 {
                     first = h;
                     return true;
@@ -253,24 +223,11 @@ namespace LegendaryWeapons
             return false;
         }
 
-        private bool IsObstacle(Collider col)
-        {
-            var go = Projectile.FindHitObject(col);
-            if (go == null || go.transform.root == _owner.transform.root)
-                return false;
-            var destr = go.GetComponent<IDestructible>();
-            if (destr is Character)
-                return false;
-            if (col.isTrigger && destr == null)
-                return false; // trigger zones (wards, areas) aren't obstacles
-            return true;
-        }
-
         /// <summary>Hits creatures along the segment; returns true at the first solid obstacle (outbound only).</summary>
         private bool Sweep(Vector3 from, Vector3 dir, float length, out float stopAt)
         {
             stopAt = length;
-            var hits = Physics.SphereCastAll(from, Plugin.HitRadius.Value, dir, length, s_mask,
+            var hits = Physics.SphereCastAll(from, Plugin.HitRadius.Value, dir, length, Geometry.HitMask,
                 QueryTriggerInteraction.Collide);
             System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
@@ -287,7 +244,7 @@ namespace LegendaryWeapons
                         DoHit(character, h.collider, point, dir, character);
                     continue; // creatures don't stop the axe
                 }
-                if (_returning || !IsObstacle(h.collider))
+                if (_returning || !Geometry.IsObstacle(_owner, h.collider))
                     continue;
                 // The planned end obstacle is handled at the turn point.
                 if (_hasEndObstacle && h.collider == _endObstacle.collider)
@@ -314,16 +271,7 @@ namespace LegendaryWeapons
 
         private bool CanHit(Character c)
         {
-            if (c == _owner || _hitThisLeg.Contains(c) || c.IsDead())
-                return false;
-            // Same rule as vanilla projectiles: no friendly fire on tames or players without PvP.
-            bool enemy = BaseAI.IsEnemy(_owner, c) ||
-                         (c.GetBaseAI() != null && c.GetBaseAI().IsAggravatable() && _owner.IsPlayer());
-            if (_owner.IsPlayer() && !_owner.IsPVPEnabled() && !enemy)
-                return false;
-            if (c.IsDodgeInvincible())
-                return false;
-            return true;
+            return !_hitThisLeg.Contains(c) && Geometry.CanHit(_owner, c);
         }
 
         private void DoHit(IDestructible destr, Collider col, Vector3 point, Vector3 dir, Character character)
