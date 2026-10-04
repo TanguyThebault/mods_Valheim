@@ -543,3 +543,39 @@ vérifications insuffisantes). Nouveau pipeline, avec une porte de validation à
   double enregistrement. À confirmer au premier lancement (log Jotunn « Failed to clone prefab »).
 - Traductions EN/FR relues : description de la viande de lapin sans « prairies », infobulle de la cape de
   renard précisée (compétence Mains nues), formulations FR retouchées.
+
+## v0.21.0 (2026-10-04) : idle de la chouette, cétacés calés sur les vagues, glisse de l'orque, claque de queue
+Workflow d'animation de la v0.17 : rig + clips dans Blender headless, exportés en courbes (.rig) et joués tels
+quels en C#, aperçus + mesures, note d'un 2e agent (seuil 7,5), puis vérification en jeu pilotée par l'agent.
+- Chouette posée : tools/blender_owl_idle.py (rig géométrique Root/Body/Chest/Neck1-3/Head/WingL/R/Tail, poids
+  lissés en hauteur, clips breathe (boucle), look, tilt, bob, ruffle ; même maths que Unity en numpy, donc
+  l'aperçu = le jeu). Format .rig étendu : blocs `clip <nom> <images> <fps> <boucle>` / `key <os> <canal> ...` /
+  `water` / `event` / `endclip`. QA : étirement des arêtes et triangles retournés par rapport à leur os.
+  - Une rotation de tête de 90° sur un seul os de cou retournait 276 triangles (repli du skinning linéaire) ;
+    3 os de cou placés dans la vraie bande du cou (0,60-0,75 de la hauteur ; plus bas ils tordaient les épaules
+    contre les ailes) ; restent ≤ 7 éclats de triangles invisibles. Mon premier test de retournement était faux
+    (comparaison aux normales au repos, alors qu'une tête qui tourne les fait tourner).
+  - Évaluateur : 5,5 (bob invisible, corps qui suit trop, maintien figé, tilt faible, ruffle discret) -> 7,6.
+  - Jeu : Models.OwlRig crée un SkinnedMeshRenderer « Visual_owl » sous le modèle posé du corbeau (le
+    MeshRenderer statique reste, éteint) ; OwlIdle joue la respiration + un geste toutes les 2,5-7 s (amplitude,
+    miroir, vitesse aléatoires ; tourne la tête vers un joueur à moins de 30 m). Vérifié en jeu (ta_show Owl).
+- Cétacés, vagues : SeaSwimmer utilisait le niveau de mer fixe (30 m) ; mesuré en jeu, la surface réelle s'en
+  écarte de -1,42 à +0,69 m. Désormais Floating.GetLiquidLevel sous l'évent : en surface l'animal suit la vague,
+  l'évent sort de 0,15 m ; souffle quand l'évent est à moins de 0,2 m de la surface réelle (log : -0,19 à
+  +0,18 m). Glisse et claque de queue tiennent la profondeur fournie par le clip.
+- Orque, glisse (clip « glide ») : nage lente et peu ample, dos ~0,1 m sous l'eau, aileron dehors 0,9-1,0 m, petit
+  roulis/pilonnement de tout le corps ; 6-9 s, respiration (remontée 0,15 m, souffle) toutes les ~6 s.
+  [Orca] GlideChance 0,5 après un souffle.
+- Baleine, claque de queue (clip « lobtail », 13,6 s) : tête à -24°, arc du tiers arrière, caudale jusqu'à 4,1 m
+  hors de l'eau, 3 frappes (3,7 / 7,1 / 10,5 s, 15,7 m/s), caudale qui traîne puis se met à plat à l'impact,
+  continuation dans l'eau. Événements « slap » : gerbe (embruns + anneau d'écume) et son synthétisé
+  (tools/synth_sea.py, whale_slap1-3). [Whale] LobtailChance 0,35. RPC WL_Lobtail, mode dans la ZDO.
+  - Évaluateur : glisse 6,5 -> 7,5, claque 6,5 -> 7,5 (caudale qui claquait à plat en 1 image, arrêt net,
+    queue au-delà de la verticale, courbure en coin corrigés).
+  - Vérifié en jeu (ta_sea act lobtail|glide|blow [whale|orca], ta_sea film).
+- Brume (souffle et gerbe) : la texture vanilla slowwispysmoke_hard est un atlas 8x8 ; sans réglage d'atlas,
+  chaque particule affichait toute la grille (vu en jeu comme un nuage de petits carrés, déjà présent sur le
+  souffle). Le réglage textureSheetAnimation de l'effet source est recopié.
+- **Correctif v0.20** : le jeu a bien un prefab RabbitMeat (« Failed to clone prefab, name already exists ») et
+  l'enregistrement des lapins échouait entièrement. Viande crue renommée RawRabbitMeat. Leçon : le manifeste
+  SoftRef ne liste pas tous les prefabs ; seul le log de chargement fait foi.

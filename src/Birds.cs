@@ -176,6 +176,9 @@ namespace Wildlife
                 var r = mf.GetComponent<Renderer>();
                 if (r != null)
                     Models.UseTexture(r, perched.Tex, go.name);
+                var rigged = mf.transform.Find("Visual_owl");     // the skinned, animated copy (OwlIdle)
+                if (r != null && rigged != null)
+                    rigged.GetComponent<SkinnedMeshRenderer>().sharedMaterials = r.sharedMaterials;
             }
             foreach (var smr in smrs)
             {

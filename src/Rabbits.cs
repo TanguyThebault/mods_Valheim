@@ -18,7 +18,7 @@ namespace Wildlife
     {
         public const string CreaturePrefab = "Rabbit";
         public const string HidePrefab = "RabbitHide";
-        public const string MeatPrefab = "RabbitMeat";
+        public const string MeatPrefab = "RawRabbitMeat";     // the game already has an (unused) RabbitMeat prefab
         public const string CookedPrefab = "CookedRabbitMeat";
 
         private static ConfigEntry<Color> s_furTint;

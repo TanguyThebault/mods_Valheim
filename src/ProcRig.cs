@@ -18,6 +18,7 @@ namespace Wildlife
         public Dictionary<string, float[]> Curves = new Dictionary<string, float[]>();
         public int Phases;
         public float Tip;
+        public Dictionary<string, RigClip> Clips = new Dictionary<string, RigClip>();
 
         private static readonly Dictionary<string, RigFile> Cache = new Dictionary<string, RigFile>();
 
@@ -66,6 +67,26 @@ namespace Wildlife
                     rf.Curves[a[1]] = c;
                     i++;
                 }
+                else if (a[0] == "clip")
+                {
+                    var clip = new RigClip
+                    {
+                        Name = a[1], Frames = int.Parse(a[2]), Fps = float.Parse(a[3], inv), Loop = a[4] == "1",
+                    };
+                    i++;
+                    for (; i < lines.Length && lines[i] != "endclip"; i++)
+                    {
+                        var k = lines[i].Split(' ');
+                        if (k[0] == "water" && k.Length > 1) { clip.Water = float.Parse(k[1], inv); continue; }
+                        if (k[0] == "event" && k.Length > 2) { clip.Events.Add(new KeyValuePair<string, float>(k[1], float.Parse(k[2], inv))); continue; }
+                        if (k[0] != "key" || k.Length < 4) continue;
+                        var v = new float[k.Length - 3];
+                        for (int m = 0; m < v.Length; m++) v[m] = float.Parse(k[m + 3], inv);
+                        clip.Keys.Add(new RigClip.Channel { Bone = k[1], Kind = k[2], Values = v });
+                    }
+                    rf.Clips[clip.Name] = clip;
+                    i++;
+                }
                 else if (a[0] == "weights")
                 {
                     int n = int.Parse(a[1]);
@@ -96,6 +117,47 @@ namespace Wildlife
             float x = Mathf.Repeat(ph, 1f) * c.Length;
             int i0 = (int)x % c.Length, i1 = (i0 + 1) % c.Length;
             return Mathf.Lerp(c[i0], c[i1], x - Mathf.Floor(x));
+        }
+    }
+
+    /// <summary>
+    /// A keyframed clip from a Blender tool (`clip` blocks of a .rig): per bone and channel, one value per frame.
+    /// Channels: rx ry rz (degrees, Quaternion.Euler order), px py pz (offset, model units), s (uniform scale),
+    /// all in the model's own space.
+    /// </summary>
+    internal class RigClip
+    {
+        public class Channel
+        {
+            public string Bone, Kind;
+            public float[] Values;
+        }
+
+        public string Name;
+        public int Frames;
+        public float Fps = 30f;
+        public bool Loop;
+        public List<Channel> Keys = new List<Channel>();
+        public float Water;     // water surface above the body centre (model units), for surface clips
+        public List<KeyValuePair<string, float>> Events = new List<KeyValuePair<string, float>>();   // (name, seconds)
+        public float Length => Frames / Fps;
+
+        public float[] Find(string bone, string kind)
+        {
+            foreach (var c in Keys)
+                if (c.Bone == bone && c.Kind == kind) return c.Values;
+            return null;
+        }
+
+        /// <summary>Value at a time in seconds (wrapped if looping, held at the end otherwise), linear between frames.</summary>
+        public static float Sample(float[] v, float t, float fps, bool loop)
+        {
+            if (v.Length == 0) return 0f;
+            float x = t * fps;
+            if (loop) x = Mathf.Repeat(x, v.Length);
+            else x = Mathf.Clamp(x, 0f, v.Length - 1);
+            int i0 = Mathf.Min((int)x, v.Length - 1), i1 = loop ? (i0 + 1) % v.Length : Mathf.Min(i0 + 1, v.Length - 1);
+            return Mathf.Lerp(v[i0], v[i1], x - i0);
         }
     }
 
@@ -659,6 +721,31 @@ namespace Wildlife
         public float RigidFront = 0.3f;        // the front this fraction of the body barely bends
         public string RigModel;                // models/<name>.rig: Blender rig + sampled swim cycle (see RigFile)
         private RigFile _rigFile;
+
+        // Surface clips from the same .rig (tools/blender_rig_swimmer.py, "extra clips"): SeaSwimmer sets Mode.
+        public const int Swim = 0, Glide = 1, Lobtail = 2;
+        public int Mode;
+        public System.Action<string> OnClipEvent;           // "slap" at each fluke impact of the lobtail
+        private RigClip _glide, _lobtail;
+        private float _clipW, _lobT = -1f;
+        private int _nextEvent;
+
+        /// <summary>The clip's water surface above the body centre, in metres (NaN when there is no such clip).</summary>
+        public float ClipWater(int mode)
+        {
+            var c = mode == Glide ? _glide : mode == Lobtail ? _lobtail : null;
+            return c != null && _rig != null ? c.Water * _rig.localScale.y : float.NaN;
+        }
+
+        public float LobtailLength => _lobtail != null ? _lobtail.Length : 0f;
+
+        /// <summary>Starts the tail slaps from the beginning (every client, from an RPC).</summary>
+        public void StartLobtail()
+        {
+            if (_lobtail == null) return;
+            _lobT = 0f;
+            _nextEvent = 0;
+        }
         public float HeadHeave = 0.02f;        // whole-body bob against the tail, in body lengths
         private Transform[] _spine;
         private float[] _s;                    // joint positions along the body (spine joints, then the fluke joint)
@@ -685,6 +772,11 @@ namespace Wildlife
         internal void Init(Dictionary<string, Transform> bones)
         {
             _rigFile = string.IsNullOrEmpty(RigModel) ? null : RigFile.Get(RigModel);
+            if (_rigFile != null)
+            {
+                _rigFile.Clips.TryGetValue("glide", out _glide);
+                _rigFile.Clips.TryGetValue("lobtail", out _lobtail);
+            }
             _boneMap = bones;
             var list = new List<Transform>();
             for (int i = 0; bones.TryGetValue("Spine" + i, out var t); i++) list.Add(t);
@@ -760,31 +852,84 @@ namespace Wildlife
 
         private Dictionary<string, Transform> _boneMap;
 
-        /// <summary>The Blender cycle (pitch curves per bone), plus turns, roll and the blow arch on top.</summary>
+        /// <summary>
+        /// The Blender cycle (pitch curves per bone), plus turns, roll and the blow arch on top. A surface clip (glide,
+        /// lobtail) fades in over it when SeaSwimmer asks for one; the lobtail also pitches and lifts the whole body
+        /// around its centre and fires its slap events.
+        /// </summary>
         private void AnimateCurves(float dt)
         {
             _spout = Mathf.Max(0f, _spout - dt);
             float calm = _spout > 0f ? 0.4f : 0.85f + 0.15f * Mathf.Clamp01(_speed / 6f);
-            _phase += dt * Frequency(_speed) * Mathf.PI * 2f;
+            bool gliding = Mode == Glide && _glide != null;
+            _phase += dt * Frequency(_speed) * (gliding ? 0.75f : 1f) * Mathf.PI * 2f;
             float ph = _phase / (Mathf.PI * 2f);
             float turn = Mathf.Clamp(_yawRate * 0.5f, -22f, 22f);
             float roll = Mathf.Clamp(-_yawRate * 1.2f, -20f, 20f);
             float arch = _spout > 0f ? Mathf.Sin(Mathf.Clamp01((2.5f - _spout) / 2.5f) * Mathf.PI) : 0f;
+
+            RigClip clip = null;
+            float ct = 0f;
+            if (_lobT >= 0f && _lobtail != null)
+            {
+                float before = _lobT;
+                _lobT += dt;
+                for (; _nextEvent < _lobtail.Events.Count && _lobtail.Events[_nextEvent].Value <= _lobT; _nextEvent++)
+                    if (_lobtail.Events[_nextEvent].Value > before || before == 0f)
+                        OnClipEvent?.Invoke(_lobtail.Events[_nextEvent].Key);
+                if (_lobT >= _lobtail.Length) _lobT = -1f;
+                else { clip = _lobtail; ct = _lobT; }
+            }
+            else if (gliding)
+            {
+                clip = _glide;
+                ct = Mathf.Repeat(ph, 1f) * _glide.Length;
+            }
+            // the lobtail starts and ends in the rest pose: no fade needed; the glide fades in and out over ~0.8 s
+            float target = clip != null ? 1f : 0f;
+            _clipW = clip == _lobtail && clip != null ? 1f : Mathf.MoveTowards(_clipW, target, dt / 0.8f);
+            if (clip == null && _clipW > 0f && _glide != null) { clip = _glide; ct = Mathf.Repeat(ph, 1f) * _glide.Length; }
+
             int n = _spine.Length;
             for (int i = 0; i < n; i++)
             {
                 float k = n > 1 ? (float)i / (n - 1) : 0f;
                 float pitch = _rigFile.Sample(_spine[i].name, ph) * calm + arch * (i == 0 ? -10f : i == n - 1 ? 8f : 0f);
+                if (clip != null) pitch = Mathf.Lerp(pitch, ClipValue(clip, _spine[i].name, "rx", ct), _clipW);
                 float yaw = turn * (k * k - (i > 0 ? ((float)(i - 1) / (n - 1)) * ((float)(i - 1) / (n - 1)) : 0f));
-                _spine[i].localRotation = Quaternion.Euler(pitch, yaw, i == 0 ? roll : 0f);
+                _spine[i].localRotation = Quaternion.Euler(pitch, yaw, i == 0 ? roll * (1f - _clipW * 0.7f) : 0f);
             }
             if (_fluke != null)
-                _fluke.localRotation = Quaternion.Euler(_rigFile.Sample("Fluke", ph) * calm, turn * 0.3f, 0f);
+            {
+                float fp = _rigFile.Sample("Fluke", ph) * calm;
+                if (clip != null) fp = Mathf.Lerp(fp, ClipValue(clip, "Fluke", "rx", ct), _clipW);
+                _fluke.localRotation = Quaternion.Euler(fp, turn * 0.3f, 0f);
+            }
             float steer = turn * 0.4f;
-            if (_finL != null) _finL.localRotation = Quaternion.Euler(0f, 0f, _rigFile.Sample("FinL", ph) - 3f + steer);
-            if (_finR != null) _finR.localRotation = Quaternion.Euler(0f, 0f, _rigFile.Sample("FinR", ph) + 3f + steer);
+            float fl = _rigFile.Sample("FinL", ph) - 3f + steer, fr = _rigFile.Sample("FinR", ph) + 3f + steer;
+            if (clip != null)
+            {
+                fl = Mathf.Lerp(fl, ClipValue(clip, "FinL", "rz", ct) - 3f, _clipW);
+                fr = Mathf.Lerp(fr, ClipValue(clip, "FinR", "rz", ct) + 3f, _clipW);
+            }
+            if (_finL != null) _finL.localRotation = Quaternion.Euler(0f, 0f, fl);
+            if (_finR != null) _finR.localRotation = Quaternion.Euler(0f, 0f, fr);
             if (_rig != null)
-                _rig.localPosition = _rigBase + Vector3.up * (-HeadHeave * LengthMeters * calm * Mathf.Sin(_phase - 0.9f * WaveNumber));
+            {
+                float rootRx = clip != null ? ClipValue(clip, "Root", "rx", ct) * _clipW : 0f;
+                float rootPy = clip != null ? ClipValue(clip, "Root", "py", ct) * _rig.localScale.y * _clipW : 0f;
+                float bob = -HeadHeave * LengthMeters * calm * (1f - _clipW) * Mathf.Sin(_phase - 0.9f * WaveNumber);
+                // the whole body turns about its centre (the object's origin), as in the Blender preview
+                var q = Quaternion.Euler(rootRx, 0f, 0f);
+                _rig.localRotation = q;
+                _rig.localPosition = q * _rigBase + Vector3.up * (bob + rootPy);
+            }
+        }
+
+        private static float ClipValue(RigClip clip, string bone, string kind, float t)
+        {
+            var v = clip.Find(bone, kind);
+            return v != null ? RigClip.Sample(v, t, clip.Fps, clip.Loop) : 0f;
         }
 
         private void Animate(float dt)

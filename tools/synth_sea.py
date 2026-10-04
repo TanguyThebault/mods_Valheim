@@ -51,6 +51,26 @@ def blow(rng, dur, centre, q, rumble):
     return out
 
 
+def slap(rng, dur=2.2):
+    """A humpback's flukes hitting the water flat: a sharp broadband crack, a deep thump of displaced water, then the
+    hiss and patter of the spray falling back."""
+    n = int(SR * dur)
+    t = np.arange(n) / SR
+    crack = rng.normal(0, 1, n) * np.exp(-t / 0.012)
+    crack = norm(bandpass(crack, 2200, 0.6)) * 0.9 + norm(bandpass(crack, 600, 0.8)) * 0.7
+    thump = np.sin(2 * np.pi * (55 + 25 * np.exp(-t / 0.05)) * t) * np.exp(-t / 0.18) * np.clip(t / 0.003, 0, 1)
+    spray_env = np.clip((t - 0.15) / 0.25, 0, 1) * np.exp(-np.clip(t - 0.4, 0, None) / 0.55)
+    spray = norm(bandpass(rng.normal(0, 1, n), 3000, 0.7)) * spray_env
+    drops = np.zeros(n)
+    for _ in range(140):                          # droplets pattering back down
+        i = int(SR * rng.uniform(0.3, 1.9))
+        L = int(SR * rng.uniform(0.004, 0.015))
+        if i + L < n:
+            drops[i:i + L] += rng.normal(0, 1, L) * np.exp(-np.linspace(0, 5, L)) * rng.uniform(0.2, 1.0) * np.exp(-(i / SR - 0.3) / 0.9)
+    drops = norm(bandpass(drops, 2500, 0.9))
+    return crack * 1.0 + thump * 1.1 + spray * 0.45 + drops * 0.35
+
+
 def finish(sig, level):
     sig = np.concatenate([np.zeros(int(SR * 0.01)), sig, np.zeros(int(SR * 0.1))])
     fade = int(SR * 0.01)
@@ -77,4 +97,7 @@ if __name__ == "__main__":
     for i, seed in enumerate((4, 10, 22), 1):
         rng = np.random.default_rng(seed)
         write(root / f"orca_blow{i}.wav", finish(blow(rng, rng.uniform(0.6, 0.85), 1400, 1.2, False), 0.7))
+    for i, seed in enumerate((5, 13, 27), 1):
+        rng = np.random.default_rng(seed)
+        write(root / f"whale_slap{i}.wav", finish(slap(rng), 0.95))
     print("wrote", sorted(p.name for p in root.iterdir()))

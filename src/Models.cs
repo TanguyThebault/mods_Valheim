@@ -257,7 +257,57 @@ namespace Wildlife
             Vector3 dst = new Vector3(t.center.x, t.min.y, t.center.z);
             Transform(d, rot, scale, src, dst, out var pos, out var nrm);
             mf.sharedMesh = NewMesh(d, pos, nrm, "owl_perched");
+            var rig = RigFile.Get("owl_perched");
+            if (rig != null && rig.Weights.Length == d.Pos.Length && rig.Clips.Count > 0)
+                OwlRig(mf, d, rig, rot, scale, src, dst);
             return true;
+        }
+
+        /// <summary>
+        /// The perched owl on its own skeleton (tools/blender_owl_idle.py): a skinned copy of the mesh under a
+        /// "Visual_owl" child of the sitting model, which the bird shows and hides as it lands and takes off. The
+        /// static renderer stays as a fallback but is switched off. Bones live in the same space as the mesh, so a
+        /// model-space rotation R becomes rot R rot^-1 (OwlIdle does that).
+        /// </summary>
+        private static void OwlRig(MeshFilter mf, ModelData d, RigFile rig, Matrix4x4 rot, float scale, Vector3 src, Vector3 dst)
+        {
+            var host = new GameObject("Visual_owl").transform;
+            host.SetParent(mf.transform, false);
+            int n = rig.Bones.Count;
+            var at = new Vector3[n];
+            var t = new Transform[n];
+            for (int i = 0; i < n; i++)
+            {
+                at[i] = dst + scale * rot.MultiplyVector(rig.Bones[i].Pos - src);
+                t[i] = new GameObject(rig.Bones[i].Name).transform;
+            }
+            for (int i = 0; i < n; i++)
+            {
+                int p = rig.Bones[i].Parent;
+                t[i].SetParent(p < 0 ? host : t[p], false);
+                t[i].localPosition = at[i] - (p < 0 ? Vector3.zero : at[p]);
+                t[i].localRotation = Quaternion.identity;
+            }
+            var mesh = UnityEngine.Object.Instantiate(mf.sharedMesh);
+            mesh.name = "owl_perched_rig";
+            mesh.boneWeights = rig.Weights;
+            mesh.bindposes = at.Select(a => Matrix4x4.Translate(-a)).ToArray();
+            var smr = host.gameObject.AddComponent<SkinnedMeshRenderer>();
+            smr.sharedMesh = mesh;
+            smr.bones = t;
+            smr.rootBone = t[0];
+            var b = mesh.bounds;
+            b.Expand(b.size.magnitude * 0.5f);
+            smr.localBounds = b;
+            var mr = mf.GetComponent<MeshRenderer>();
+            if (mr != null)
+            {
+                smr.sharedMaterials = mr.sharedMaterials;
+                smr.shadowCastingMode = mr.shadowCastingMode;
+                mr.enabled = false;
+            }
+            var idle = host.gameObject.AddComponent<OwlIdle>();
+            idle.Setup(rot.rotation, scale);
         }
 
         /// <summary>
