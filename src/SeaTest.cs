@@ -21,7 +21,7 @@ namespace Wildlife
         private static Coroutine s_log;
 
         public override string Name => "ta_sea";
-        public override string Help => "ta_sea goto [depth] | land | spawn [whales] [orcas] | log [seconds|off] | film [seconds] | act blow|glide|lobtail [whale|orca] - sea test bench";
+        public override string Help => "ta_sea goto [depth] | land | spawn [whales] [orcas] | log [seconds|off] | film [seconds] | act blow|glide|lobtail|breach|flee [whale|orca] - sea test bench";
 
         public override void Run(string[] args)
         {
@@ -117,7 +117,7 @@ namespace Wildlife
                 case "act":
                 {
                     string what = args.Length > 1 ? args[1].ToLowerInvariant() : "blow";
-                    string want = args.Length > 2 ? args[2].ToLowerInvariant() : (what == "glide" ? "orca" : what == "lobtail" ? "whale" : "");
+                    string want = args.Length > 2 ? args[2].ToLowerInvariant() : (what == "glide" || what == "breach" ? "orca" : what == "lobtail" ? "whale" : "");
                     var target = SeaSwimmerRegistry.All.Where(x => x != null && x.name.ToLowerInvariant().Contains(want))
                         .OrderBy(x => Vector3.Distance(x.transform.position, player.transform.position)).FirstOrDefault();
                     Print("ta_sea: " + (target == null ? "nothing to act on" : target.name + ": " + target.Force(what)));
@@ -189,7 +189,7 @@ namespace Wildlife
                         sb.Append(" | " + s.name.Replace("(Clone)", "") + "#" + (s.GetInstanceID() % 1000) +
                                   " d=" + Vector3.Distance(p, player.transform.position).ToString("F0") +
                                   " y=" + (p.y - ZoneSystem.instance.m_waterLevel).ToString("F1") +
-                                  " v=" + speed.ToString("F2") +
+                                  " v=" + speed.ToString("F2") + " " + s.State +
                                   " own=" + (valid ? (nv.IsOwner() ? "me" : nv.GetZDO().GetOwner() == 0L ? "none" : "other") : "invalid"));
                     }
                     Plugin.Log.LogInfo(sb.ToString());

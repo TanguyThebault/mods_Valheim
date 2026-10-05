@@ -563,6 +563,9 @@ namespace Wildlife
     /// Procedural quadruped gait for the mouse: trot when slow (diagonal pairs), bounding gallop when fast (front
     /// pair then back pair), body bob, spine flex, level head with sniffing and ear twitches when still, tail
     /// trailing with lag. Speed comes from the creature's actual movement, so it also works on other clients.
+    /// The feet are planted: each foot follows a ground track (stance: it stays put on the ground while the body
+    /// passes over it; swing: an arc forward to its next footfall), and a two-bone IK (hip or shoulder, knee or
+    /// elbow) bends the leg to reach it; the foot stays flat. The stride is the speed times the stance time.
     /// </summary>
     public class ProcQuadruped : MonoBehaviour, IProcAnimated
     {
@@ -634,15 +637,6 @@ namespace Wildlife
             float move = Mathf.Clamp01(speed / 1.2f);
             float swing = (run ? 45f : 28f) * move;
 
-            // legs: trot = diagonal pairs; bound = front pair and back pair in turn
-            float FL, FR, BL, BR;
-            if (run) { FL = 0f; FR = 0.3f; BL = Mathf.PI; BR = Mathf.PI + 0.3f; }
-            else { FL = 0f; BR = 0f; FR = Mathf.PI; BL = Mathf.PI; }
-            Leg("Front", "L", FL, swing);
-            Leg("Front", "R", FR, swing);
-            Leg("Back", "L", BL, swing);
-            Leg("Back", "R", BR, swing);
-
             // body: bob and spine flex (strong when bounding)
             var root = B("Root");
             if (root != null && _restPos.TryGetValue(root, out var rp))
@@ -675,6 +669,18 @@ namespace Wildlife
             Rot(B("EarL"), new Vector3(back - _twitchL * 20f, 0f, _twitchL * 10f));
             Rot(B("EarR"), new Vector3(back - _twitchR * 20f, 0f, -_twitchR * 10f));
 
+            // legs last (the body is posed): trot = diagonal pairs; bound = front pair and back pair in turn
+            float duty = run ? 0.4f : 0.6f;                      // share of the cycle a foot is on the ground
+            float cyc = _phase / (Mathf.PI * 2f);
+            float FL, FR, BL, BR;
+            if (run) { FL = 0f; FR = 0.05f; BL = 0.5f; BR = 0.55f; }
+            else { FL = 0f; BR = 0f; FR = 0.5f; BL = 0.5f; }
+            float stride = speed * duty / Mathf.Max(freq, 0.1f);   // planted: the foot travels back at the speed
+            IkLeg("Front", "L", cyc + FL, duty, stride, move);
+            IkLeg("Front", "R", cyc + FR, duty, stride, move);
+            IkLeg("Back", "L", cyc + BL, duty, stride, move);
+            IkLeg("Back", "R", cyc + BR, duty, stride, move);
+
             // tail: each segment lags the motion; lifted a little when running
             float sway = Mathf.Sin(_time * 2.1f) * (speed < 0.3f ? 10f : 4f);
             for (int i = 0; i < 4; i++)
@@ -685,13 +691,73 @@ namespace Wildlife
             }
         }
 
-        private void Leg(string end, string side, float offset, float swing)
+        private readonly Dictionary<string, Vector3> _footRest = new Dictionary<string, Vector3>();   // creature space
+        private readonly Dictionary<string, float> _bendSign = new Dictionary<string, float>();
+
+        /// <summary>Rest foot positions (creature space) and which way each knee bends, from the rest pose.</summary>
+        private void RestFeet()
         {
-            float s = Mathf.Sin(_phase + offset);
-            float lift = Mathf.Max(0f, Mathf.Cos(_phase + offset));   // knee bends while the foot travels forward
-            Rot(B(end + "Leg" + side), new Vector3(s * swing, 0f, 0f));
-            Rot(B(end + "Knee" + side), new Vector3((end == "Front" ? 1f : -1f) * lift * swing * 0.9f, 0f, 0f));
-            Rot(B(end + "Foot" + side), new Vector3(-s * swing * 0.4f, 0f, 0f));
+            if (_footRest.Count > 0) return;
+            foreach (var end in new[] { "Front", "Back" })
+                foreach (var side in new[] { "L", "R" })
+                {
+                    Transform up = B(end + "Leg" + side), kn = B(end + "Knee" + side), ft = B(end + "Foot" + side);
+                    if (up == null || kn == null || ft == null) continue;
+                    _footRest[end + side] = transform.InverseTransformPoint(ft.position);
+                    var par = up.parent;
+                    Vector3 h = par.InverseTransformPoint(up.position), k = par.InverseTransformPoint(kn.position), f = par.InverseTransformPoint(ft.position);
+                    // which side of the hip-foot line the knee lies on, in the y-z plane
+                    float cross = (f.y - h.y) * (k.z - h.z) - (f.z - h.z) * (k.y - h.y);
+                    _bendSign[end + side] = cross >= 0f ? 1f : -1f;
+                }
+        }
+
+        private static float Ang(float y, float z) => Mathf.Atan2(z, y) * Mathf.Rad2Deg;   // angle about +x
+
+        /// <summary>One leg: its foot on its ground track, the leg bent to reach it (two-bone IK in its plane).</summary>
+        private void IkLeg(string end, string side, float cyc, float duty, float stride, float move)
+        {
+            Transform up = B(end + "Leg" + side), kn = B(end + "Knee" + side), ft = B(end + "Foot" + side);
+            if (up == null || kn == null || ft == null) return;
+            Rot(up, Vector3.zero);
+            Rot(kn, Vector3.zero);
+            Rot(ft, Vector3.zero);
+            RestFeet();
+            if (!_footRest.TryGetValue(end + side, out var rest)) return;
+            float ph = cyc - Mathf.Floor(cyc);
+            float scale = transform.lossyScale.y > 1e-4f ? transform.lossyScale.y : 1f;
+            float legLen = (Vector3.Distance(up.position, kn.position) + Vector3.Distance(kn.position, ft.position)) / scale;
+            float dz, dy = 0f;
+            if (ph < duty)
+                dz = stride * (0.5f - ph / duty);                // stance: from front to back, on the ground
+            else
+            {
+                float u = (ph - duty) / (1f - duty);             // swing: an arc forward
+                float e = u * u * (3f - 2f * u);
+                dz = stride * (e - 0.5f);
+                dy = Mathf.Sin(u * Mathf.PI) * Mathf.Min(0.35f * legLen, 0.15f * legLen + 0.3f * stride / scale);
+            }
+            // target in creature space (metres / scale), then in the leg's parent space (the body bobs and flexes)
+            Vector3 target = transform.TransformPoint(rest + new Vector3(0f, dy * move, dz * move / scale));
+            var par = up.parent;
+            Vector3 h = par.InverseTransformPoint(up.position);
+            Vector3 k0 = par.InverseTransformPoint(kn.position);
+            Vector3 f0 = par.InverseTransformPoint(ft.position);
+            Vector3 t = par.InverseTransformPoint(target);
+            float a = new Vector2(k0.y - h.y, k0.z - h.z).magnitude, b = new Vector2(f0.y - k0.y, f0.z - k0.z).magnitude;
+            var D = new Vector2(t.y - h.y, t.z - h.z);
+            float d = Mathf.Clamp(D.magnitude, Mathf.Abs(a - b) + 1e-4f, a + b - 1e-4f);
+            float alpha = Mathf.Acos(Mathf.Clamp((a * a + d * d - b * b) / (2f * a * d), -1f, 1f)) * Mathf.Rad2Deg;
+            float upAng = Ang(D.x, D.y) + _bendSign[end + side] * alpha;
+            var hip = new Vector2(h.y, h.z);
+            var knee = hip + a * new Vector2(Mathf.Cos(upAng * Mathf.Deg2Rad), Mathf.Sin(upAng * Mathf.Deg2Rad));
+            var tip = hip + D.normalized * d;
+            float lowAng = Ang(tip.x - knee.x, tip.y - knee.y);
+            float rxUp = upAng - Ang(k0.y - h.y, k0.z - h.z);
+            float rxKn = lowAng - Ang(f0.y - k0.y, f0.z - k0.z) - rxUp;
+            Rot(up, new Vector3(rxUp, 0f, 0f));
+            Rot(kn, new Vector3(rxKn, 0f, 0f));
+            Rot(ft, new Vector3(-(rxUp + rxKn), 0f, 0f));      // the foot stays flat
         }
     }
 
@@ -870,6 +936,8 @@ namespace Wildlife
 
             RigClip clip = null;
             float ct = 0f;
+            if (_lobT > 1.5f && Mode == Swim)
+                _lobT = -1f;     // cut short (hit, it flees); the grace covers an RPC arriving before the synced mode
             if (_lobT >= 0f && _lobtail != null)
             {
                 float before = _lobT;

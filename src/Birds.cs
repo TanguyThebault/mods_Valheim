@@ -80,7 +80,7 @@ namespace Wildlife
                 return;
             }
             Voices["sparrow"] = new VoiceSpec(Look.LoadClips("sfx", "sparrow_song"), () => SongInterval.Value, () => SongVolume.Value, 35f, day: true, night: false);
-            Voices["owl"] = new VoiceSpec(Look.LoadClips("sfx_owl", "owl_hoot"), () => 18f, () => s_owlVolume.Value, 70f, day: false, night: true);
+            Voices["owl"] = new VoiceSpec(Look.LoadClips("sfx_owl", "owl_"), () => 18f, () => s_owlVolume.Value, 70f, day: false, night: true);
             RegisterSparrow(crow);
             SpawnVanillaCrows(crow);
             RegisterOwl(crow);
@@ -106,6 +106,7 @@ namespace Wildlife
             bird.m_avoidDangerDistance = 5f;
 
             foreach (var c in go.GetComponentsInChildren<DropOnDestroyed>(true)) Object.DestroyImmediate(c);
+            AddDrop(go, Crafts.SparrowFeather, 1, 2);
             foreach (var d in go.GetComponentsInChildren<Destructible>(true))
             {
                 d.m_health = 1f;
@@ -152,6 +153,7 @@ namespace Wildlife
                 Reshape(go, beak: 0.3f, tail: 0.45f, width: 1.3f, head: 1.25f);
                 Look.Paint(go, Look.Mask("owl"), new Color(0.50f, 0.36f, 0.22f));
             }
+            AddDrop(go, Crafts.OwlFeather, 1, 3);
             go.AddComponent<OwlHunter>();
             Finish(go, "$owl", "owl", restAtNight: false, restByDay: true);
             Spawns.AddDespawn(go);
@@ -187,6 +189,27 @@ namespace Wildlife
                 Models.UseTexture(smr, flying.Tex, go.name);
             }
             return true;
+        }
+
+        /// <summary>Our own feathers in the bird's drop table (always dropped, next to whatever is already there).</summary>
+        private static void AddDrop(GameObject go, string item, int min, int max)
+        {
+            var prefab = Crafts.Prefab(item);
+            if (prefab == null)
+            {
+                Plugin.Log.LogWarning(go.name + ": no " + item + " to drop");
+                return;
+            }
+            var drop = go.GetComponent<DropOnDestroyed>() ?? go.AddComponent<DropOnDestroyed>();
+            var table = drop.m_dropWhenDestroyed ?? (drop.m_dropWhenDestroyed = new DropTable());
+            if (table.m_drops == null || table.m_drops.Count == 0)
+            {
+                table.m_drops = new List<DropTable.DropData>();
+                table.m_dropChance = 1f;
+            }
+            table.m_drops.Add(new DropTable.DropData { m_item = prefab, m_stackMin = min, m_stackMax = max, m_weight = 1f });
+            table.m_oneOfEach = true;
+            table.m_dropMin = table.m_dropMax = table.m_drops.Count;
         }
 
         private static void Finish(GameObject go, string hover, string voice, bool restAtNight, bool restByDay)
@@ -559,7 +582,7 @@ namespace Wildlife
                     continue;
                 if (hit.point.y < ZoneSystem.instance.m_waterLevel + 0.3f)
                     continue;
-                if (Player.IsPlayerInRange(hit.point, __instance.m_avoidDangerDistance))
+                if (Ghost.PlayerInRange(hit.point, __instance.m_avoidDangerDistance))
                     continue;
                 if (height > bestHeight)
                 {

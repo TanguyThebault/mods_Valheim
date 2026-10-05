@@ -11,7 +11,9 @@ namespace Wildlife
     /// Sea mammals in the Ocean: humpback whales (slate grey, slow, alone, long dives) and orcas (black and white,
     /// faster, in pods, sometimes leap out). Generated models on our own swimming skeleton; movement is ours too
     /// (owner-driven, synced with ZSyncTransform). When they surface they blow: a mist spout from the blowhole
-    /// and the sound of the breath, seen and heard by everyone (RPC). Ambient fauna: no hit points yet.
+    /// and the sound of the breath, seen and heard by everyone (RPC). They sing (whale) and call (orca) now and
+    /// then. They can be hunted like the Serpent: a lot of health, a dive and a sprint away when hit, and their
+    /// meat, blubber, baleen or teeth float up when they die (see Crafts).
     /// </summary>
     internal static class Sea
     {
@@ -20,9 +22,19 @@ namespace Wildlife
 
         private static ConfigEntry<int> s_whaleMax, s_orcaMax;
         private static ConfigEntry<float> s_whaleLength, s_orcaLength, s_whaleChance, s_orcaChance, s_blowVolume;
-        private static ConfigEntry<float> s_lobtailChance, s_glideChance;
+        private static ConfigEntry<float> s_lobtailChance, s_glideChance, s_breachChance, s_callVolume, s_whaleHealth, s_orcaHealth;
         internal static readonly Dictionary<string, AudioClip[]> Blows = new Dictionary<string, AudioClip[]>();
         internal static float BlowVolume => s_blowVolume.Value;
+        internal static float CallVolume => s_callVolume.Value;
+        internal static float SlapVolume => s_slapVolume.Value;
+        private static ConfigEntry<float> s_cryVolume, s_slapVolume;
+
+        /// <summary>What floats up when a whale or an orca dies: prefab, min, max.</summary>
+        internal static readonly Dictionary<string, (string prefab, int min, int max)[]> Loot = new Dictionary<string, (string, int, int)[]>
+        {
+            { "whale", new[] { (Crafts.WhaleMeat, 8, 12), (Crafts.WhaleBlubber, 6, 10), (Crafts.Baleen, 3, 5) } },
+            { "orca", new[] { (Crafts.OrcaMeat, 4, 7), (Crafts.OrcaTooth, 2, 4), (Crafts.WhaleBlubber, 1, 3) } },
+        };
 
         public static void BindConfig(ConfigFile config)
         {
@@ -33,10 +45,17 @@ namespace Wildlife
             s_orcaChance = config.Bind("Orca", "SpawnChance", 6f, "Chance per spawn check (every 15 min), % (restart).");
             s_orcaLength = config.Bind("Orca", "Length", 7f, "Orca length, m (restart).");
             s_blowVolume = config.Bind("Sea", "BlowVolume", 0.9f, "Volume of the blowhole spout, 0-1 (live).");
-            s_lobtailChance = config.Bind("Whale", "LobtailChance", 0.35f,
-                "Chance (0-1) that a whale slaps its tail on the water after blowing (restart).");
-            s_glideChance = config.Bind("Orca", "GlideChance", 0.5f,
-                "Chance (0-1) that an orca glides with its dorsal fin out after blowing (restart).");
+            s_lobtailChance = config.Bind("Whale", "LobtailChance", 0.5f,
+                "Chance (0-1) that a whale slaps its tail on the water at the end of a surfacing (restart).");
+            s_glideChance = config.Bind("Orca", "GlideChance", 0.45f,
+                "Chance (0-1) that an orca glides with its dorsal fin out at the end of a surfacing (restart).");
+            s_breachChance = config.Bind("Orca", "BreachChance", 0.25f,
+                "Chance (0-1) that an orca leaps out of the water at the end of a surfacing (restart).");
+            s_callVolume = config.Bind("Sea", "CallVolume", 0.2f, "Volume of whale songs and orca calls, 0-1 (live).");
+            s_cryVolume = config.Bind("Sea", "CryVolume", 0.25f, "Volume of the cries when hit or killed, 0-1 (restart).");
+            s_slapVolume = config.Bind("Sea", "SlapVolume", 0.27f, "Volume of the tail slaps, 0-1 (live).");
+            s_whaleHealth = config.Bind("Whale", "Health", 1500f, "Hit points (restart).");
+            s_orcaHealth = config.Bind("Orca", "Health", 600f, "Hit points (restart).");
         }
 
         public static void AddTranslations(CustomLocalization loc)
@@ -57,21 +76,23 @@ namespace Wildlife
             Blows["whale"] = Look.LoadClips("sfx_sea", "whale_blow");
             Blows["orca"] = Look.LoadClips("sfx_sea", "orca_blow");
             Blows["whale_slap"] = Look.LoadClips("sfx_sea", "whale_slap");
+            Blows["whale_call"] = Look.LoadClips("sfx_sea", "whale_song");
+            Blows["orca_call"] = Look.LoadClips("sfx_sea", "orca_call");
             var mist = FindMistMaterial();
 
             Make(WhalePrefab, "whale", "$whale", template, mist, s_whaleLength.Value, new SeaSwimmer.Settings
             {
-                Speed = 2.4f, TurnRate = 12f, Depth = 7f, MinDepth = 14f, SurfaceEvery = 55f, SurfaceFor = 10f,
-                BreachChance = 0f, Wander = 25f, Species = "whale", LobtailChance = s_lobtailChance.Value,
-            }, finZ: new Vector2(0.45f, 0.8f), anim: a =>
+                Speed = 2.4f, TurnRate = 12f, Depth = 7f, MinDepth = 14f, SurfaceEvery = 50f, BlowsMin = 2, BlowsMax = 4, BlowGap = 6f,
+                BreachChance = 0f, Wander = 25f, Species = "whale", LobtailChance = s_lobtailChance.Value, CallEvery = 35f,
+            }, s_whaleHealth.Value, finZ: new Vector2(0.45f, 0.8f), anim: a =>
             {
                 a.TipAmplitude = 0.10f; a.FlukePitch = 22f; a.WaveNumber = 6f; a.Strouhal = 0.37f; a.MinFrequency = 0.14f; a.LengthMeters = s_whaleLength.Value; a.Horizontal = 3f; a.RigidFront = 0.45f; a.HeadHeave = 0.015f;
             }, spout: new Vector2(6.5f, 1.4f));
             Make(OrcaPrefab, "orca", "$orca", template, mist, s_orcaLength.Value, new SeaSwimmer.Settings
             {
-                Speed = 5.5f, TurnRate = 32f, Depth = 4f, MinDepth = 8f, SurfaceEvery = 28f, SurfaceFor = 5f,
-                BreachChance = 0.3f, Wander = 35f, Species = "orca", GlideChance = s_glideChance.Value,
-            }, finZ: new Vector2(0.48f, 0.75f), anim: a =>
+                Speed = 5.5f, TurnRate = 32f, Depth = 4f, MinDepth = 8f, SurfaceEvery = 28f, BlowsMin = 1, BlowsMax = 2, BlowGap = 3.5f,
+                BreachChance = s_breachChance.Value, Wander = 35f, Species = "orca", GlideChance = s_glideChance.Value, CallEvery = 14f,
+            }, s_orcaHealth.Value, finZ: new Vector2(0.48f, 0.75f), anim: a =>
             {
                 a.TipAmplitude = 0.15f; a.FlukePitch = 22f; a.WaveNumber = 6.5f; a.Strouhal = 0.37f; a.MinFrequency = 0.35f; a.LengthMeters = s_orcaLength.Value; a.Horizontal = 3f; a.RigidFront = 0.5f; a.HeadHeave = 0.015f;
             }, spout: new Vector2(3.5f, 0.7f));
@@ -183,7 +204,7 @@ namespace Wildlife
         }
 
         private static void Make(string prefabName, string model, string hover, Material template, Material mist, float length,
-            SeaSwimmer.Settings settings, Vector2 finZ, System.Action<ProcSwimmer> anim, Vector2 spout)
+            SeaSwimmer.Settings settings, float health, Vector2 finZ, System.Action<ProcSwimmer> anim, Vector2 spout)
         {
             var d = ModelData.Load(model);
             if (d == null)
@@ -221,11 +242,91 @@ namespace Wildlife
             swimmer.RigModel = rigFile != null ? model : null;
             anim(swimmer);
             swimmer.Init(rig);
+            AddHunting(go, model, length, health, d);
             go.AddComponent<SeaSwimmer>().Set(settings);
             var h = go.AddComponent<HoverText>();
             h.m_text = hover;
             PrefabManager.Instance.AddPrefab(new CustomPrefab(go, true));
             Plugin.Log.LogInfo("Registered " + prefabName + " (" + length + " m, " + bones.Count + " bones)");
+        }
+
+        /// <summary>
+        /// Huntable like the Serpent: a capsule hitbox along the body (on the "hitbox" layer, kinematic, so it takes
+        /// arrows and spears without shoving boats), a Destructible with the Serpent's blood and our own cries.
+        /// SeaSwimmer reacts to the hits (flees) and to the death (loot floats up).
+        /// </summary>
+        private static void AddHunting(GameObject go, string model, float length, float health, ModelData d)
+        {
+            var box = new GameObject("Hitbox");
+            box.transform.SetParent(go.transform, false);
+            int layer = LayerMask.NameToLayer("hitbox");
+            box.layer = layer >= 0 ? layer : 0;
+            var col = box.AddComponent<CapsuleCollider>();
+            col.direction = 2;
+            col.radius = length * d.Bounds.size.y / d.Bounds.size.z * 0.5f;
+            col.height = length * 0.95f;
+            var body = box.AddComponent<Rigidbody>();
+            body.isKinematic = true;
+            body.useGravity = false;
+
+            var serpent = PrefabManager.Cache.GetPrefab<GameObject>("Serpent")?.GetComponent<Character>();
+            var hurt = Look.LoadClips("sfx_sea", model + "_hurt");
+            var template = serpent != null ? Look.FindSfxTemplate(serpent.m_hitEffects, serpent.m_deathEffects) : null;
+            var hurtSfx = Look.MakeSfx("sfx_" + model + "_hurt", template, hurt, 0.95f, 1.05f);
+            var deathSfx = Look.MakeSfx("sfx_" + model + "_death", template, hurt, 0.7f, 0.78f);
+            foreach (var sfx in new[] { hurtSfx, deathSfx })
+            {
+                if (sfx == null) continue;
+                var z = sfx.GetComponent<ZSFX>();
+                z.m_minVol *= s_cryVolume.Value;
+                z.m_maxVol *= s_cryVolume.Value;
+            }
+
+            var dst = go.AddComponent<Destructible>();
+            dst.m_destructibleType = DestructibleType.Character;
+            dst.m_health = health;
+            if (serpent != null)
+            {
+                dst.m_hitEffect = Look.Voice(serpent.m_hitEffects, hurtSfx);
+                // no ragdoll: the body is ours, it just goes (ZNetScene.Destroy) in a cloud of blood
+                var death = new List<EffectList.EffectData>();
+                foreach (var ed in Look.Voice(serpent.m_deathEffects, deathSfx).m_effectPrefabs)
+                    if (ed?.m_prefab != null && ed.m_prefab.GetComponentInChildren<Ragdoll>(true) == null)
+                        death.Add(ed);
+                dst.m_destroyedEffect = new EffectList { m_effectPrefabs = death.ToArray() };
+            }
+            if (layer >= 0)
+                Plugin.Log.LogInfo(go.name + ": " + health + " hp, hitbox layer " + layer + " ignores character " +
+                                   Physics.GetIgnoreLayerCollision(layer, LayerMask.NameToLayer("character")) + ", vehicle " +
+                                   Physics.GetIgnoreLayerCollision(layer, LayerMask.NameToLayer("vehicle")));
+        }
+
+        /// <summary>The loot of a dead whale or orca, on the surface above it (items float).</summary>
+        internal static void DropLoot(string species, Vector3 at)
+        {
+            if (!Loot.TryGetValue(species, out var loot) || ZNetScene.instance == null)
+                return;
+            at.y = SeaSwimmer.Surface(at) + 0.3f;
+            foreach (var (name, min, max) in loot)
+            {
+                var prefab = ZNetScene.instance.GetPrefab(name);
+                if (prefab == null)
+                {
+                    Plugin.Log.LogWarning("Loot prefab missing: " + name);
+                    continue;
+                }
+                for (int n = Random.Range(min, max + 1); n > 0;)
+                {
+                    Vector2 c = Random.insideUnitCircle * 2.5f;
+                    var go = Object.Instantiate(prefab, at + new Vector3(c.x, 0f, c.y), Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+                    var item = go.GetComponent<ItemDrop>();
+                    int stack = Mathf.Min(n, item.m_itemData.m_shared.m_maxStackSize);
+                    item.SetStack(stack);
+                    ItemDrop.OnCreateNew(item);
+                    n -= stack;
+                }
+            }
+            Plugin.Log.LogInfo(species + " killed: loot at " + at.ToString("F0"));
         }
 
         /// <summary>
@@ -328,26 +429,32 @@ namespace Wildlife
 
     /// <summary>
     /// Owner-driven swimming: cruise at depth between waypoints in deep enough water along a gently weaving path,
-    /// turn away from shallows, come up to breathe now and then and blow (orcas may leap clear of the water),
-    /// never leave the sea. At the surface everything follows the real wave height under the animal (the game's
-    /// water volume, not the flat sea level), so the blowhole breaks the surface on a crest as in a trough.
-    /// After a blow, an orca may glide just under the surface with its dorsal fin out, coming up to breathe every few
-    /// seconds; a whale may lobtail, slapping its flukes on the water (ProcSwimmer plays the clips made in Blender,
-    /// which also give the depth to hold).
+    /// turn away from shallows, never leave the sea. Every SurfaceEvery seconds a surfacing runs as explicit steps:
+    /// ascend until the blowhole breaks the surface, blow BlowsMin-BlowsMax times a few seconds apart while
+    /// cruising slowly at the surface, then one finale: an orca leaps, or glides with its dorsal fin out, a whale
+    /// slaps its tail on the water (lobtail), or it simply dives. Two plain dives in a row force a show, so a player
+    /// watching sees one. At the surface everything follows the real wave height under the animal (the game's water
+    /// volume, not the flat sea level), so the blowhole breaks the surface on a crest as in a trough. The glide and
+    /// lobtail are clips made in Blender that also give the depth to hold (ProcSwimmer). Hit, the animal sprints away
+    /// deep for a while (a whole orca pod with it); killed, its loot floats up. Whales sing, orcas call (local).
     /// </summary>
     public class SeaSwimmer : MonoBehaviour
     {
         [System.Serializable]
         public class Settings
         {
-            public float Speed = 3f, TurnRate = 20f, Depth = 6f, MinDepth = 12f, SurfaceEvery = 40f, SurfaceFor = 6f, BreachChance;
-            public float Wander = 25f;      // degrees of weaving either side of the course
-            public float GlideChance, LobtailChance;   // after a blow
+            public float Speed = 3f, TurnRate = 20f, Depth = 6f, MinDepth = 12f, SurfaceEvery = 40f, BreachChance;
+            public int BlowsMin = 1, BlowsMax = 2;
+            public float BlowGap = 5f;                 // seconds between two blows of one surfacing
+            public float Wander = 25f;                 // degrees of weaving either side of the course
+            public float GlideChance, LobtailChance;   // finale of a surfacing
+            public float CallEvery = 30f;              // mean seconds between two songs / calls
             public string Species = "whale";
         }
 
         private const string ZdoMode = "wl_sea_mode";
         private static readonly int s_modeHash = ZdoMode.GetStableHashCode();
+        private const int Cruise = 0, Ascend = 1, Breathe = 2;
 
         public Settings S = new Settings();
         private ZNetView _nview;
@@ -356,12 +463,16 @@ namespace Wildlife
         private AudioSource _audio;
         private Transform _blowhole, _fluke;
         private Vector3 _target;
-        private float _retarget, _surfaceTimer, _surfacing, _vy, _seed;
+        private float _retarget, _surfaceTimer, _vy, _seed;
         private float _modeTimer, _breathTimer, _breath;
-        private int _mode;
-        private bool _breaching, _blown;
+        private float _stateTime, _nextBlow, _flee, _callTimer;
+        private int _mode, _state, _blowsLeft, _plainDives;
+        private bool _breaching;
 
         internal void Set(Settings s) { S = s; }
+
+        internal string State => _breaching ? "breach" : _mode == ProcSwimmer.Glide ? "glide" : _mode == ProcSwimmer.Lobtail ? "lobtail" :
+            _flee > 0f ? "flee" : _state == Ascend ? "ascend" : _state == Breathe ? "breathe" : "cruise";
 
         private void OnEnable() { SeaSwimmerRegistry.All.Add(this); }
 
@@ -386,8 +497,15 @@ namespace Wildlife
             _audio.dopplerLevel = 0f;
             _seed = Random.Range(0f, 100f);
             _surfaceTimer = Random.Range(S.SurfaceEvery * 0.3f, S.SurfaceEvery);
+            _callTimer = Random.Range(3f, S.CallEvery);
             if (_anim != null)
                 _anim.OnClipEvent = OnClipEvent;
+            var hp = GetComponent<Destructible>();
+            if (hp != null)
+            {
+                hp.m_onDamaged += OnDamaged;
+                hp.m_onDestroyed += OnKilled;
+            }
         }
 
         private void Start()
@@ -419,7 +537,7 @@ namespace Wildlife
             if (_spout != null)
                 _spout.Play(true);
             _anim?.Spout();
-            Play(S.Species, 1f);
+            Play(S.Species, Sea.BlowVolume);
         }
 
         /// <summary>Everyone sees the tail slaps (the splashes come from the clip's events, on each client).</summary>
@@ -433,7 +551,7 @@ namespace Wildlife
             if (Sea.Blows.TryGetValue(key, out var clips) && clips.Length > 0)
             {
                 _audio.pitch = Random.Range(0.93f, 1.07f);
-                _audio.PlayOneShot(clips[Random.Range(0, clips.Length)], Sea.BlowVolume * volume);
+                _audio.PlayOneShot(clips[Random.Range(0, clips.Length)], volume);
             }
         }
 
@@ -444,7 +562,7 @@ namespace Wildlife
             Vector3 at = _fluke != null ? _fluke.position : transform.position - transform.forward * 5f;
             at.y = Surface(at);
             Splash(at);
-            Play("whale_slap", 1.2f);
+            Play("whale_slap", Sea.SlapVolume);
         }
 
         /// <summary>White water thrown up by the flukes: a burst of spray and a ring of foam spreading on the surface.</summary>
@@ -494,7 +612,57 @@ namespace Wildlife
             _retarget = 15f;
         }
 
-        /// <summary>Test bench (ta_sea act): blow now, glide, or slap the tail, on the owner.</summary>
+        // ------------------------------------------------------------ hunting
+
+        /// <summary>Hit (on the owner): drop whatever show is on and sprint away from the closest player, deep.</summary>
+        private void OnDamaged()
+        {
+            Scare(true);
+            if (S.Species != "orca")
+                return;
+            foreach (var other in SeaSwimmerRegistry.All)     // the pod flees together
+                if (other != null && other != this && other.S.Species == S.Species &&
+                    Vector3.Distance(other.transform.position, transform.position) < 50f)
+                    other.Scare(false);
+        }
+
+        internal void Scare(bool hit)
+        {
+            if (_nview == null || !_nview.IsValid() || !_nview.IsOwner())
+                return;
+            if (_flee <= 0f)
+                Plugin.Log.LogInfo(name + (hit ? " hit" : " alarmed") + ": flees");
+            _flee = Random.Range(20f, 30f);
+            _state = Cruise;
+            _surfaceTimer = S.SurfaceEvery;
+            if (_mode != ProcSwimmer.Swim)
+                SetMode(ProcSwimmer.Swim, 0f);
+            var player = Player.GetClosestPlayer(transform.position, 200f);
+            if (player == null)
+                return;
+            Vector3 away = transform.position - player.transform.position;
+            away.y = 0f;
+            for (int i = 0; i < 8; i++)
+            {
+                var t = transform.position + Quaternion.Euler(0f, (i % 2 == 0 ? 1 : -1) * i * 20f, 0f) * away.normalized * 80f;
+                if (Deep(t, S.MinDepth))
+                {
+                    _target = t;
+                    _retarget = 30f;
+                    return;
+                }
+            }
+        }
+
+        /// <summary>Killed (on the owner, just before the object goes): the loot floats up.</summary>
+        private void OnKilled()
+        {
+            Sea.DropLoot(S.Species, transform.position);
+        }
+
+        // ------------------------------------------------------- surfacing
+
+        /// <summary>Test bench (ta_sea act): surface now, glide, slap the tail or leap, on the owner.</summary>
         internal string Force(string what)
         {
             if (_nview == null || !_nview.IsValid() || !_nview.IsOwner())
@@ -503,19 +671,15 @@ namespace Wildlife
             {
                 case "blow":
                     SetMode(ProcSwimmer.Swim, 0f);
-                    _surfacing = S.SurfaceFor * 2f;
-                    _blown = false;
-                    return "surfacing to blow";
+                    StartSurfacing();
+                    return "surfacing to blow " + _blowsLeft + " times";
                 case "glide":
-                    if (float.IsNaN(_anim.ClipWater(ProcSwimmer.Glide))) return "no glide clip";
-                    SetMode(ProcSwimmer.Glide, 9f);
-                    _breathTimer = 3f;
-                    return "gliding";
                 case "lobtail":
-                    if (_anim.LobtailLength <= 0f) return "no lobtail clip";
-                    SetMode(ProcSwimmer.Lobtail, _anim.LobtailLength);
-                    _nview.InvokeRPC(ZNetView.Everybody, "WL_Lobtail");
-                    return "lobtailing";
+                case "breach":
+                    return Finale(what) ? what : "can't " + what;
+                case "flee":
+                    Scare(true);
+                    return "fleeing";
             }
             return "unknown: " + what;
         }
@@ -528,12 +692,86 @@ namespace Wildlife
                 _nview.GetZDO().Set(s_modeHash, mode);
         }
 
+        private void StartSurfacing()
+        {
+            _state = Ascend;
+            _stateTime = 0f;
+            _blowsLeft = Random.Range(S.BlowsMin, S.BlowsMax + 1);
+        }
+
+        private void EndSurfacing()
+        {
+            _state = Cruise;
+            _surfaceTimer = Random.Range(S.SurfaceEvery * 0.7f, S.SurfaceEvery * 1.3f);
+        }
+
+        private void Blow(float holeOut)
+        {
+            _blowsLeft--;
+            _nextBlow = S.BlowGap * Random.Range(0.75f, 1.3f);
+            Plugin.Log.LogDebug(name + " blows (" + _blowsLeft + " left): blowhole " + holeOut.ToString("F2") + " m from the surface");
+            _nview.InvokeRPC(ZNetView.Everybody, "WL_Spout");
+        }
+
+        /// <summary>The end of a surfacing: a show (leap, glide, lobtail) or a plain dive. Logged, to check rates.</summary>
+        private void PickFinale()
+        {
+            var p = transform.position;
+            bool deep = Deep(p, S.MinDepth * 0.6f);
+            bool canGlide = _anim != null && !float.IsNaN(_anim.ClipWater(ProcSwimmer.Glide));
+            bool canLobtail = _anim != null && _anim.LobtailLength > 0f;
+            bool force = _plainDives >= 2;
+            float r = Random.value;
+            string what = "dive";
+            if (deep)
+            {
+                if (S.BreachChance > 0f && r < S.BreachChance) what = "breach";
+                else if (canGlide && (r < S.BreachChance + S.GlideChance || force)) what = "glide";
+                else if (canLobtail && (r < S.LobtailChance || force)) what = "lobtail";
+            }
+            var player = Player.GetClosestPlayer(p, 500f);
+            Plugin.Log.LogInfo(name + " surfacing over: " + what + (deep ? "" : " (too shallow for a show)") + (force ? " (forced)" : "") +
+                               ", closest player " + (player != null ? Vector3.Distance(p, player.transform.position).ToString("F0") + " m" : "none"));
+            _plainDives = what == "dive" ? _plainDives + 1 : 0;
+            if (what == "dive" || !Finale(what))
+                EndSurfacing();
+        }
+
+        private bool Finale(string what)
+        {
+            switch (what)
+            {
+                case "breach":
+                    SetMode(ProcSwimmer.Swim, 0f);
+                    _state = Cruise;
+                    _breaching = true;
+                    _vy = Random.Range(7f, 9f);
+                    return true;
+                case "glide":
+                    if (_anim == null || float.IsNaN(_anim.ClipWater(ProcSwimmer.Glide))) return false;
+                    _state = Cruise;
+                    SetMode(ProcSwimmer.Glide, Random.Range(7f, 11f));
+                    _breathTimer = Random.Range(3f, 5f);
+                    return true;
+                case "lobtail":
+                    if (_anim == null || _anim.LobtailLength <= 0f) return false;
+                    _state = Cruise;
+                    SetMode(ProcSwimmer.Lobtail, _anim.LobtailLength);
+                    _nview.InvokeRPC(ZNetView.Everybody, "WL_Lobtail");
+                    return true;
+            }
+            return false;
+        }
+
+        // ------------------------------------------------------------ update
+
         private void Update()
         {
             if (_nview == null || !_nview.IsValid() || ZoneSystem.instance == null)
                 return;
             if (_anim != null)
                 _anim.Mode = _nview.GetZDO().GetInt(s_modeHash);
+            Calls();
             if (!_nview.IsOwner())
             {
                 // nobody owns it any more (it drifted out of every active area): the closest player takes it over
@@ -554,7 +792,10 @@ namespace Wildlife
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), dt * 6f);
                 transform.position = p;
                 if (_vy < 0f && p.y < Surface(p) - 1.5f)
+                {
                     _breaching = false;
+                    EndSurfacing();
+                }
                 return;
             }
 
@@ -564,58 +805,53 @@ namespace Wildlife
                 return;
             }
 
+            _flee = Mathf.Max(0f, _flee - dt);
             _retarget -= dt;
-            _surfaceTimer -= dt;
             if (_retarget <= 0f || Vector3.Distance(new Vector3(p.x, 0, p.z), new Vector3(_target.x, 0, _target.z)) < 12f)
                 PickTarget();
             if (!Deep(p + transform.forward * 25f, S.MinDepth * 0.6f))
                 PickTarget();   // shallows ahead
-            if (_surfaceTimer <= 0f)
+            if (_state == Cruise && _flee <= 0f)
             {
-                _surfaceTimer = Random.Range(S.SurfaceEvery * 0.7f, S.SurfaceEvery * 1.3f);
-                _surfacing = S.SurfaceFor;
-                _blown = false;
+                _surfaceTimer -= dt;
+                if (_surfaceTimer <= 0f)
+                    StartSurfacing();
             }
 
-            float wantY = water - S.Depth;
+            float speed = S.Speed * (_flee > 0f ? 1.8f : 1f);
+            float wantY = water - (_flee > 0f ? S.Depth * 2f : S.Depth);
             bool atSurface = false;
-            if (_surfacing > 0f)
+            if (_state != Cruise)
             {
-                _surfacing -= dt;
+                _stateTime += dt;
                 // the blowhole just clears the water where it is, crest or trough
                 Vector3 hole = _blowhole != null ? _blowhole.position : p + transform.forward * 3f;
-                float holeUp = hole.y - p.y;
                 float surface = Surface(hole);
-                wantY = surface - holeUp + 0.15f;
+                wantY = surface - (hole.y - p.y) + 0.15f;
                 atSurface = Mathf.Abs(p.y - wantY) < 1.5f;
-                if (!_blown && hole.y > surface - 0.2f)
+                float holeOut = hole.y - surface;
+                if (_state == Ascend)
                 {
-                    _blown = true;
-                    Plugin.Log.LogDebug(name + " blows: blowhole " + (hole.y - surface).ToString("F2") + " m from the surface, sea level offset " +
-                                        (surface - water).ToString("F2") + " m");
-                    _nview.InvokeRPC(ZNetView.Everybody, "WL_Spout");
-                }
-                if (_blown && S.BreachChance > 0f && Random.value < S.BreachChance * dt / Mathf.Max(S.SurfaceFor, 0.1f) * 2f)
-                {
-                    _breaching = true;
-                    _vy = Random.Range(7f, 9f);
-                    _surfacing = 0f;
-                    return;
-                }
-                if (_blown && _surfacing <= 0f && Deep(p, S.MinDepth * 0.8f))
-                {
-                    // the blow is over: an orca may glide, a whale may slap its tail, before diving again
-                    float r = Random.value;
-                    if (r < S.GlideChance && !float.IsNaN(_anim.ClipWater(ProcSwimmer.Glide)))
+                    if (holeOut > -0.2f || (_stateTime > 25f && atSurface))
                     {
-                        SetMode(ProcSwimmer.Glide, Random.Range(6f, 9f));
-                        _breathTimer = Random.Range(4f, 6f);
-                        return;
+                        Blow(holeOut);
+                        _state = Breathe;
                     }
-                    if (r < S.LobtailChance && _anim.LobtailLength > 0f)
+                    else if (_stateTime > 45f)
                     {
-                        SetMode(ProcSwimmer.Lobtail, _anim.LobtailLength);
-                        _nview.InvokeRPC(ZNetView.Everybody, "WL_Lobtail");
+                        Plugin.Log.LogInfo(name + " gave up surfacing (blowhole " + holeOut.ToString("F1") + " m under)");
+                        EndSurfacing();
+                    }
+                }
+                else
+                {
+                    speed *= 0.6f;                         // breathing: slow, the back rolling at the surface
+                    _nextBlow -= dt;
+                    if (_nextBlow <= 0f && _blowsLeft > 0 && (holeOut > -0.2f || _nextBlow < -4f))
+                        Blow(holeOut);
+                    else if (_nextBlow <= 0f && _blowsLeft <= 0)
+                    {
+                        PickFinale();
                         return;
                     }
                 }
@@ -624,15 +860,32 @@ namespace Wildlife
 
             // weave gently around the course (two slow sines), so the path is never a straight line
             float weave = S.Wander * (Mathf.Sin(Time.time * 0.11f + _seed) * 0.7f + Mathf.Sin(Time.time * 0.047f + _seed * 2f) * 0.3f);
+            if (_flee > 0f) weave *= 0.3f;
             Vector3 flat = Quaternion.Euler(0f, weave, 0f) * new Vector3(_target.x - p.x, 0f, _target.z - p.z).normalized;
             float climb = atSurface ? 0f : Mathf.Clamp((wantY - p.y) * 0.25f, -0.45f, 0.45f);
             var wanted = Quaternion.LookRotation((flat + Vector3.up * climb).normalized);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, wanted, S.TurnRate * dt);
-            p += transform.forward * S.Speed * dt;
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, wanted, S.TurnRate * (_flee > 0f ? 1.6f : 1f) * dt);
+            p += transform.forward * speed * dt;
             if (atSurface)
                 p.y = Mathf.Lerp(p.y, wantY, 1f - Mathf.Exp(-dt * 4f));   // ride the waves
             p.y = Mathf.Min(p.y, Surface(p) - 0.3f);
             transform.position = p;
+        }
+
+        /// <summary>
+        /// Songs and calls, on every client (ambient, not synced): a whale phrase every ~CallEvery s, an orca call
+        /// more often, only with the local player within earshot.
+        /// </summary>
+        private void Calls()
+        {
+            _callTimer -= Time.deltaTime;
+            if (_callTimer > 0f)
+                return;
+            _callTimer = Random.Range(S.CallEvery * 0.5f, S.CallEvery * 1.5f);
+            var me = Player.m_localPlayer;
+            if (me == null || Vector3.Distance(me.transform.position, transform.position) > _audio.maxDistance)
+                return;
+            Play(S.Species + "_call", Sea.CallVolume);
         }
 
         /// <summary>
@@ -647,7 +900,7 @@ namespace Wildlife
             if (_modeTimer <= 0f || float.IsNaN(depth) || (shallow && _mode == ProcSwimmer.Glide))
             {
                 SetMode(ProcSwimmer.Swim, 0f);
-                _surfaceTimer = Random.Range(S.SurfaceEvery * 0.7f, S.SurfaceEvery * 1.3f);
+                EndSurfacing();
                 PickTarget();
                 return;
             }
@@ -695,6 +948,13 @@ namespace Wildlife
     {
         public float Seconds = 10f;
 
-        private void Start() { Destroy(gameObject, Seconds); }
+        private float _born;
+        public float Age => Time.time - _born;
+
+        private void Start()
+        {
+            _born = Time.time;
+            Destroy(gameObject, Seconds);
+        }
     }
 }

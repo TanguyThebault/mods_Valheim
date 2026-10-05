@@ -36,7 +36,7 @@ namespace Wildlife
         private static CreatureOverlay s_instance;
         private static readonly string[] OurPrefabs =
         {
-            Rabbits.CreaturePrefab, Foxes.CreaturePrefab, Mice.CreaturePrefab, Birds.SparrowPrefab, Birds.OwlPrefab, Sea.WhalePrefab, Sea.OrcaPrefab,
+            Rabbits.CreaturePrefab, Foxes.CreaturePrefab, Mice.CreaturePrefab, Frogs.CreaturePrefab, Birds.SparrowPrefab, Birds.OwlPrefab, Sea.WhalePrefab, Sea.OrcaPrefab,
         };
 
         private string _filter = "";
@@ -165,6 +165,37 @@ namespace Wildlife
         {
             if (_white != null)
                 Destroy(_white);
+        }
+    }
+}
+
+namespace Wildlife
+{
+    /// <summary>
+    /// `ta_census [range]`: logs (and prints) what lies around the player: characters by prefab, ragdolls, and our
+    /// corpses (SelfDestruct) with their age. Used to check that killed creatures go away.
+    /// </summary>
+    internal class CensusCommand : Jotunn.Entities.ConsoleCommand
+    {
+        public override string Name => "ta_census";
+        public override string Help => "ta_census [range=60] - counts creatures, ragdolls and corpses around you (also in the log)";
+        public override bool IsCheat => true;
+
+        public override void Run(string[] args)
+        {
+            var p = Player.m_localPlayer;
+            if (p == null) return;
+            float range = args.Length > 0 && float.TryParse(args[0], out var r) ? r : 60f;
+            var sb = new System.Text.StringBuilder("Census within " + range + " m at " + Time.time.ToString("0") + " s:");
+            var near = new System.Func<Component, bool>(c => c != null && Vector3.Distance(c.transform.position, p.transform.position) < range);
+            foreach (var g in Object.FindObjectsOfType<Character>().Where(c => near(c) && !c.IsPlayer()).GroupBy(c => Utils.GetPrefabName(c.gameObject)))
+                sb.Append("\n  character " + g.Key + " x" + g.Count() + " (dead " + g.Count(c => c.IsDead()) + ")");
+            foreach (var g in Object.FindObjectsOfType<Ragdoll>().Where(c => near(c)).GroupBy(c => Utils.GetPrefabName(c.gameObject)))
+                sb.Append("\n  ragdoll " + g.Key + " x" + g.Count());
+            foreach (var s in Object.FindObjectsOfType<SelfDestruct>(true).Where(c => near(c)))
+                sb.Append("\n  corpse " + s.name + " active=" + s.gameObject.activeInHierarchy + " enabled=" + s.enabled + " age=" + s.Age.ToString("0") + " s");
+            Console.instance.Print(sb.ToString());
+            Plugin.Log.LogInfo(sb.ToString());
         }
     }
 }

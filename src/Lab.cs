@@ -219,6 +219,22 @@ namespace Wildlife
                 Save(sheet, file);
                 index.AppendLine(clip.name + "  " + clip.length.ToString("F2") + " s" + (clip.isLooping ? " loop" : "") + ": " + file);
             }
+            // our .rig clips played by code (FrogAnim): every clip over its length, as the game plays it
+            foreach (var fa in go.GetComponentsInChildren<FrogAnim>(true))
+                foreach (var kv in fa.LabClips())
+                {
+                    var sheet = new Texture2D(tile * frames, tile * nv, TextureFormat.RGB24, false);
+                    for (int f = 0; f < frames; f++)
+                    {
+                        fa.LabClip(kv.Value, kv.Value.Length * f / frames);
+                        yield return null;
+                        yield return null;
+                        AllViews(sheet, f);
+                    }
+                    string file = prefabName + "_rig_" + Safe(kv.Key) + ".png";
+                    Save(sheet, file);
+                    index.AppendLine("rig clip " + kv.Key + " " + kv.Value.Length.ToString("F2") + " s, " + frames + " frames: " + file);
+                }
             foreach (var proc in go.GetComponentsInChildren<IProcAnimated>(true))
             {
                 foreach (float speed in proc.LabSpeeds)
@@ -235,6 +251,56 @@ namespace Wildlife
                     Save(sheet, file);
                     index.AppendLine("procedural at " + speed + " m/s: " + file);
                 }
+            }
+            // ground contact of the procedural gaits: the creature stands still in the lab, so a planted foot must
+            // move backward at exactly the speed (a treadmill). Measured on the skinned mesh, 30 frames a second.
+            foreach (var proc in go.GetComponentsInChildren<IProcAnimated>(true))
+            {
+                var smr = go.GetComponentsInChildren<SkinnedMeshRenderer>(true).FirstOrDefault(r => r.enabled && r.gameObject.activeInHierarchy);
+                if (smr == null) break;
+                var baked = new Mesh();
+                Vector3[] World()
+                {
+                    smr.BakeMesh(baked);
+                    var m = smr.transform.localToWorldMatrix;
+                    var vs = baked.vertices;
+                    var o = new Vector3[vs.Length];
+                    for (int i = 0; i < vs.Length; i++) o[i] = m.MultiplyPoint3x4(vs[i]);
+                    return o;
+                }
+                proc.LabPose(0f, 0f);
+                yield return null;
+                float ground = World().Min(v => v.y);
+                foreach (float speed in proc.LabSpeeds.Where(sp => sp > 0.1f))
+                {
+                    float maxSink = 0f;
+                    var slides = new List<float>();
+                    Vector3[] prev = null;
+                    Vector3 ahead = go.transform.forward;
+                    float tol = 0.005f;
+                    for (int k = 0; k < 36; k++)
+                    {
+                        proc.LabPose(speed, k / 30f);
+                        yield return null;
+                        var w = World();
+                        maxSink = Mathf.Max(maxSink, ground - w.Min(v => v.y));
+                        if (prev != null)
+                            for (int i = 0; i < w.Length; i++)
+                                if (w[i].y < ground + tol && prev[i].y < ground + tol)
+                                {
+                                    var vel = (w[i] - prev[i]) * 30f + ahead * speed;    // 0 when planted
+                                    slides.Add(new Vector2(vel.x, vel.z).magnitude);
+                                }
+                        prev = w;
+                    }
+                    slides.Sort();
+                    float p90 = slides.Count > 0 ? slides[(int)(slides.Count * 0.9f)] : 0f;
+                    string line = "ground " + proc.GetType().Name + " at " + speed + " m/s: max sink " + (maxSink * 100f).ToString("0.0") +
+                                  " cm, contact slide p90 " + p90.ToString("0.00") + " m/s (" + slides.Count + " samples)";
+                    index.AppendLine(line);
+                    Plugin.Log.LogInfo(prefabName + " " + line);
+                }
+                Object.Destroy(baked);
             }
             // blowhole spout: simulate the particles through time (they were switched off by Spawn)
             var holes = go.GetComponentsInChildren<ParticleSystem>(true).Where(ps => ps.name == "Blowhole").ToArray();

@@ -30,7 +30,7 @@ namespace Wildlife
 
         internal static bool IsOurs(Character c)
         {
-            return RabbitTag.All.Contains(c) || MouseTag.All.Contains(c) || FoxTag.All.ContainsKey(c);
+            return RabbitTag.All.Contains(c) || MouseTag.All.Contains(c) || FoxTag.All.ContainsKey(c) || FrogAnim.All.Contains(c);
         }
 
         private static void Postfix(Character a, Character b, ref bool __result)

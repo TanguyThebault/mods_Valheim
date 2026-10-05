@@ -502,7 +502,7 @@ namespace Wildlife
             float range = Foxes.FleeDistance.Value;
             if (_fleeingFrom != null)
             {
-                if (!_fleeingFrom.IsDead() &&
+                if (!_fleeingFrom.IsDead() && !Ghost.Ignored(_fleeingFrom) &&
                     Vector3.Distance(_fleeingFrom.transform.position, transform.position) < range + 10f)
                     return _fleeingFrom;
                 _fleeingFrom = null;
@@ -512,7 +512,7 @@ namespace Wildlife
             _nextLook = Time.time + 0.5f;
             foreach (var p in Player.GetAllPlayers())
             {
-                if (p == null || p.IsDead())
+                if (p == null || p.IsDead() || Ghost.Ignored(p))
                     continue;
                 float d = Vector3.Distance(p.transform.position, transform.position);
                 if (d > range)

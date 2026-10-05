@@ -1,0 +1,30 @@
+{
+ "breathe": {
+  "seconds": 2.4,
+  "max_edge_stretch": 1.177,
+  "min_edge_squash": 0.684,
+  "max_flipped_triangles": 0,
+  "triangles": 4101
+ },
+ "hop": {
+  "seconds": 0.6,
+  "max_edge_stretch": 11.273,
+  "min_edge_squash": 0.113,
+  "max_flipped_triangles": 117,
+  "triangles": 4101
+ },
+ "croak": {
+  "seconds": 1.5,
+  "max_edge_stretch": 2.137,
+  "min_edge_squash": 0.677,
+  "max_flipped_triangles": 15,
+  "triangles": 4101
+ },
+ "swim": {
+  "seconds": 0.9,
+  "max_edge_stretch": 14.335,
+  "min_edge_squash": 0.035,
+  "max_flipped_triangles": 170,
+  "triangles": 4101
+ }
+}

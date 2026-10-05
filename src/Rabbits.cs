@@ -253,6 +253,7 @@ namespace Wildlife
             };
             config.AddDropConfig(new DropConfig { Item = HidePrefab, Chance = 100f, MinAmount = 1, MaxAmount = 1, LevelMultiplier = true });
             config.AddDropConfig(new DropConfig { Item = MeatPrefab, Chance = 100f, MinAmount = 1, MaxAmount = 2, LevelMultiplier = true });
+            config.AddDropConfig(new DropConfig { Item = Crafts.RabbitFoot, Chance = 12f, MinAmount = 1, MaxAmount = 1 });
             config.AddSpawnConfig(new SpawnConfig
             {
                 Name = CreaturePrefab + "_Meadows",

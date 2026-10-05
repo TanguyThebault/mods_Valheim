@@ -19,7 +19,7 @@ namespace Wildlife
     public class Plugin : BaseUnityPlugin
     {
         public const string Guid = "lekinox.wildlife";
-        public const string Version = "0.21.0";
+        public const string Version = "0.24.3";
 
         internal static BepInEx.Logging.ManualLogSource Log;
         internal static Plugin Instance;
@@ -39,6 +39,8 @@ namespace Wildlife
             Birds.BindConfig(Config);
             Foxes.BindConfig(Config);
             Mice.BindConfig(Config);
+            Frogs.BindConfig(Config);
+            Fireflies.BindConfig(Config);
             Sea.BindConfig(Config);
             Spawns.BindConfig(Config);
             Interactions.BindConfig(Config);
@@ -49,7 +51,11 @@ namespace Wildlife
             Birds.AddTranslations(loc);
             Foxes.AddTranslations(loc);
             Mice.AddTranslations(loc);
+            Frogs.AddTranslations(loc);
+            Fireflies.AddTranslations(loc);
             Sea.AddTranslations(loc);
+            Crafts.AddTranslations(loc);
+            ModChest.AddTranslations(loc);
 
             PrefabManager.OnVanillaPrefabsAvailable += RegisterAll;
             new Harmony(Guid).PatchAll();
@@ -57,6 +63,7 @@ namespace Wildlife
             CommandManager.Instance.AddConsoleCommand(new ClearCommand());
             CommandManager.Instance.AddConsoleCommand(new LabCommand());
             CommandManager.Instance.AddConsoleCommand(new OverlayCommand());
+            CommandManager.Instance.AddConsoleCommand(new CensusCommand());
             CommandManager.Instance.AddConsoleCommand(new SeaCommand());
             Log.LogInfo("Wildlife " + Version + " loaded");
         }
@@ -98,12 +105,17 @@ namespace Wildlife
         private void RegisterAll()
         {
             PrefabManager.OnVanillaPrefabsAvailable -= RegisterAll;
+            Try("Materials", Crafts.RegisterMaterials);
             Try("Rabbits", Rabbits.Register);
             Try("Foxes", Foxes.Register);
             Try("Mice", Mice.Register);
+            Try("Frogs", Frogs.Register);
+            Try("Fireflies", Fireflies.Register);
             Try("Birds", Birds.Register);
             Try("Sea", Sea.Register);
             Try("Fish", Fishes.Register);
+            Try("Recipes", Crafts.RegisterRecipes);
+            Try("Mod chest", ModChest.Register);
         }
 
         private static void Try(string what, System.Action register)

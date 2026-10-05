@@ -579,3 +579,143 @@ quels en C#, aperçus + mesures, note d'un 2e agent (seuil 7,5), puis vérificat
 - **Correctif v0.20** : le jeu a bien un prefab RabbitMeat (« Failed to clone prefab, name already exists ») et
   l'enregistrement des lapins échouait entièrement. Viande crue renommée RawRabbitMeat. Leçon : le manifeste
   SoftRef ne liste pas tous les prefabs ; seul le log de chargement fait foi.
+
+## v0.22.0 (2026-10-04) : surfaces fiables, cétacés chassables, nouvelles voix, 21 recettes
+Retour de Lekinox : glisse et claque de queue jamais vues en jeu naturellement ; sons des orques, baleines et
+chouette à retravailler ; au moins 3 recettes par animal (débutant, mi-parcours, fin de partie).
+- Cause probable : le choix glisse/claque ne se faisait qu'à l'image exacte où la fenêtre de surface (10 s baleine,
+  5 s orque) expirait, et seulement si l'animal avait déjà soufflé ; la baleine (7 m de fond, 2,4 m/s, 12°/s) mettait
+  ~8 s à remonter, le souffle arrivait au ras du seuil (les logs le montraient toujours à -0,18/-0,20 m) et les
+  remontées sans souffle ne laissaient aucune trace. Le saut de l'orque (tiré à chaque image) mangeait aussi la glisse.
+  Les tests `ta_sea film` mettaient la profondeur à 2,5 m, d'où des remontées rapides au banc d'essai seulement.
+- SeaSwimmer réécrit en étapes explicites : remontée (jusqu'au souffle, 45 s max, souffle forcé après 25 s en
+  surface) -> respiration (baleine 2-4 souffles espacés de ~6 s, orque 1-2 à ~3,5 s, nage lente) -> final tiré une
+  seule fois : orque saut 25 % / glisse 45 % / plongée, baleine claque 50 % / plongée. Deux plongées simples de
+  suite forcent un spectacle. Chaque final est écrit en Info dans le log (« surfacing over: glide, closest player
+  42 m ») ; `ta_sea log` affiche l'état (cruise/ascend/breathe/glide/lobtail/breach/flee). [Orca] BreachChance.
+- Chassables (choix de Lekinox) : capsule « Hitbox » (couche hitbox, rigidbody cinématique) + Destructible
+  (Character) ; baleine 1500 PV, orque 600 ([Whale]/[Orca] Health). Sang du Serpent vanilla, nos cris
+  (whale_hurt/orca_hurt, plus graves à la mort, sans ragdoll). Touché : fuite 20-30 s, 2x plus profond, 1,8x plus
+  vite, à l'opposé du joueur ; tout le groupe d'orques à moins de 50 m fuit aussi ; une claque en cours est coupée.
+  Mort : butin qui flotte en surface (baleine : 8-12 viande, 6-10 graisse, 3-5 fanons ; orque : 4-7 viande, 2-4
+  dents, 1-3 graisse). `ta_sea act flee|breach`.
+- Sons (tools/synth_voices.py, numpy + scipy, spectrogrammes vérifiés) : baleine, 4 phrases de chant (gémissements
+  80-300 Hz à harmoniques dérivantes, « whoops » montants, grognements pulsés) dans une longue queue sous-marine ;
+  orque, 4 appels pulsés (trains de clics dont la cadence 600-2000/s fait la hauteur, sauts de contour, sifflement
+  aigu, écholocation) ; souffles refaits (claquement mouillé + gouttes, expiration filtrée par les formants des voies
+  aériennes, inspiration « hhoo » puis fermeture de l'évent) ; chouette hulotte refaite (« hou-ou ... hou, hou-hou-
+  houuuu » au trémolo de ~11 Hz, timbre creux, attaque soufflée, réverbération de forêt) + 2 « kewick » de femelle.
+  Chants de baleine toutes les ~35 s et appels d'orque toutes les ~14 s, locaux, à moins de 140 m ([Sea] CallVolume).
+- Recettes (Crafts.cs) : nouveaux matériaux patte de lapin (12 %), plume de moineau, plume de chouette, viande /
+  steak de baleine, graisse, fanons, viande / grillade d'orque, dent d'orque.
+  Lapin : bottes (existant) / civet (chaudron 2) / patte porte-bonheur (table d'artisan, ceinture : chute -50 %,
+  saut +12 %). Renard : cape (existant) / toque (établi 3, résistance au froid) / cape du renard argenté (établi 4,
+  bruit -30 %, discrétion). Mulot : mulots au miel (chaudron 1) / pâté aux navets (chaudron 2) / tourte des moissons
+  (chaudron 4). Moineau : flèches (établi) / bannière à plumes / cape de plumes (chute lente + 5 % vitesse).
+  Chouette : capuche (établi 2, pas silencieux) / statuette (tailleur de pierre, notre modèle) / flèches-aiguilles.
+  Baleine : bouillon (chaudron 1) / lampe à huile (forge, brûle la graisse ~1,7 h par morceau) / bouclier en fanons
+  (forge 3). Orque : orque fumée aux baies (chaudron 1) / lance en dent d'orque (forge 2, +10 givre) / statue
+  d'orque bondissante en marbre noir (notre modèle penché à -32°).
+- Pas encore vérifié en jeu (Lekinox teste) : rien de tout ça n'a tourné dans Valheim.
+
+## v0.23.0 (2026-10-04) : souffles refaits, mode ghost, sons de mer plus discrets, mulots, coffre de test
+- Souffles (« on dirait des pets ») : mesurés, les anciens avaient 44-51 % d'énergie sous 200 Hz, une périodicité
+  voisée (~0,35), un battement d'amplitude à 16-24 Hz, un grondement < 120 Hz et une inspiration voisée à 95 Hz.
+  Nouveau souffle (tools/synth_voices.py, blow) : bruit façonné dans le domaine fréquentiel, sans aucune
+  composante tonale (< 3 % sous 120 Hz), bosses larges de voies aériennes (baleine ~760/2100 Hz, orque ~1000/2600
+  + 4500 Hz), trois spectres en fondu à puissance égale (formants -20 %, passe-bas 9 -> 6 kHz), niveau qui ne fait
+  que décroître (points en dB, fondu cosinus), « pop » + gouttelettes (clics de Poisson >= 1,5 ms, ±6 dB) à
+  l'ouverture, inspiration en crescendo à -17/-19 dB. Orque : rafale vive de 40 ms, ~0,5 s au-dessus de -20 dB.
+  Évaluateur (2e agent, analyse de signal : il ne peut pas écouter) : baleine 6,0 -> 7,5 -> 8,0 -> 8,5 ; orque
+  5,5 -> 7,0 -> 7,5 -> 7,0 -> 8,5. La variante d'orque notée 8,0 (graine 400) est retirée : 3 souffles de baleine,
+  2 d'orque, octet pour octet ceux qui ont été notés.
+- Mode ghost : un lapin ou un mulot qui avait pris le joueur pour cible avant le ghost fuyait sans fin (AnimalAI ne
+  lâche une cible qu'après l'avoir « sentie »). Ghost.cs : nos AnimalAI (lapin, mulot) oublient un joueur en ghost
+  ou en vol debug ; nos oiseaux et les corbeaux (RandomFlyingBird.DangerNearby, choix de perchoir) l'ignorent ;
+  le renard aussi (Threat).
+- Sons d'orques et de baleines (hors souffle) / 4 : [Sea] CallVolume 0,8 -> 0,2 (.cfg live), CryVolume 0,25 (cris
+  de blessure et de mort, ZSFX), SlapVolume 0,27 (claque de queue, avant 0,9 x 1,2).
+- Mulots : la viande tombe toujours ([Mouse] MeatChance 15 -> 100, .cfg live).
+- Coffre de test (ModChest.cs) : WL_ModChest, coffre de fer noir 8 x 6, rempli une seule fois (drapeau dans la ZDO)
+  de tous les objets de Wildlife et de Legendary Weapons (ModRegistry de Jotunn) : 20 de chaque matériau ou
+  nourriture, 1 de chaque équipement. `spawn WL_ModChest` ou `wl_chest` (le pose devant soi). Les pièces (tapis,
+  bannière, lampe, statues) ne sont pas des objets : marteau.
+- Pas encore vérifié en jeu.
+
+## v0.23.1 (2026-10-04) : durabilité des équipements
+- Les équipements clonés affichaient 1000 de durabilité. Valeurs propres (Crafts.SetDurability, log Info avant/après) :
+  bottes de lapin 200, cape de renard 400, toque 500, capuche de chouette 300, cape du renard argenté 800, cape de
+  plumes 700, bouclier en fanons 300 (+50/niveau), lance en dent d'orque 250 (+50) ; la patte porte-bonheur ne
+  s'use plus. Les objets déjà en inventaire gardent leur valeur actuelle jusqu'à une réparation... qui ne la
+  baisse pas : en jeter un et en reprendre un neuf (coffre `wl_chest`) pour voir la nouvelle valeur.
+
+## v0.24.0 (2026-10-04) : vague 1 du plan « autres biomes » : le Marais (grenouilles, lucioles)
+Plan validé par Lekinox : 9 animaux en 4 vagues (Marais ; Montagnes ; Plaines ; Brumes, Grand Nord, Terres cendrées),
+chacun avec son modèle, 3 recettes, des sons synthétisés évalués, des animations évaluées, vérification en jeu.
+- Plafonds de triangles (2 x le maillage vanilla de base, lus dans les bundles avec UnityPy, hors dépôt) :
+  lièvre 2 164 (grenouille <= 4 328), cerf 2 418, loup 1 962, corbeau 394 + 280.
+- Grenouille : concept fal flux/schnell frog_3, Trellis 2 (5 000 faces), tools/build_fauna.py (nouveau : morceaux
+  détachés retirés, décimation pymeshlab après soudure des coutures UV, aperçus) -> 4 299 triangles.
+  - Rig et clips : tools/blender_frog.py (même méthode que la chouette : maths de Unity en numpy, aperçus Blender,
+    QA d'étirement) : squelette Root/Body/Chest/Head/Throat + cuisse, jambe, pied, orteils, bras, main par côté,
+    poids lissés par régions ; clips breathe, hop, croak, swim ; --poses pour tester un os à la fois.
+  - Constat : les pattes arrière générées sont un seul bloc replié ; toute vraie extension pend les pieds sous le
+    ventre (vérifié os par os). Le saut garde les pattes repliées : arc du corps, bascule du nez (lève puis pique),
+    bras tendus, mains posées à l'atterrissage.
+  - Évaluateur d'animation (2e agent, seuil 7,5) : breathe 6,0 -> 7,5 ; hop 6,0 -> 6,8 -> 7,0 -> 7,5 ; croak 6,0 ->
+    6,8 -> 7,2 -> 7,8 ; swim 4,0 -> 5,5 -> 6,0 -> 6,5 -> 6,0 (version 6,5 gardée) : sous le seuil, à vérifier en jeu
+    (la grenouille nage en surface, l'eau cache le dessous ; conseil de l'évaluateur).
+  - Jeu (Frogs.cs) : lièvre vanilla invisible dessous (AnimalAI craintif, physique, réseau ; m_avoidWater off, nage),
+    notre rig (ProcRig.Build avec les poids du .rig) ; FrogAnim joue breathe, hop (cadencé : un saut par
+    [Frog] HopDistance parcourue), swim dans l'eau, croak sur demande ; FrogVoice : chœur la nuit et sous la pluie,
+    rare le jour, silence si un joueur (hors ghost) est à moins de 7 m ou si elle fuit. Dépouille propre sur le dos.
+    Apparition Marais, au bord de l'eau (altitude -1 à 2,5), groupes de 2-4, 25 %, max 6 ; FarDespawn ; ghost.
+    Butin : cuisses (100 %), peau (50 %).
+- Sons (tools/synth_swamp.py, évaluateur audio, seuil 8,5) : appels à impulsions (chaque impulsion : bouffée de
+  bruit + clic du larynx à travers des formants légèrement déplacés, espacement et amplitude irréguliers, souffle
+  calé sur les impulsions) : grenouille rousse (ronronnement 26-38 impulsions/s, ~450/1 300 Hz) 6,5 -> 7,5 -> 8,5 ;
+  grenouille verte (« crroa », ~100 impulsions/s, 3 formants) 7,0 -> 8,5 -> 8,0 -> 8,5 ; cri d'alarme (cris
+  successifs, glissement d'attaque, gigue par segments, râpe, souffle, halètement) 5,0 -> 6,5 -> 7,0 -> 8,0 -> 8,5.
+  Gardés : les 5 coassements et le cri notés 8,5 (variantes à 8,0 retirées).
+- Lucioles (Fireflies.cs) : essaim d'ambiance (Swarm, réutilisable pour les papillons de la vague 4) : particules à
+  texture douce qui clignotent et dérivent (bruit), petite lumière qui vacille ; la nuit seulement, au-dessus de
+  l'eau du Marais ; le propriétaire le retire au jour ; attrapable (touche utiliser) : 2-4 lucioles.
+- Recettes (Crafts.cs) :
+  - grenouille : D cuisses grillées (broche) + soupe de grenouille (chaudron 1) ; M bottes de marais (établi 3,
+    armure 12, endurance de nage -50 %) ; F élixir de bond (chaudron 4, orge : saut x2, chute /2, 2 min).
+  - lucioles : D bocal à lucioles (lumière sans combustible, clone de lanterne dvergr) ; M lanterne de ceinture
+    (forge, utilitaire : lueur attachée) ; F hydromel luminescent (chaudron 5, sève : 10 min de lueur, endurance
+    +25 %).
+- Pas encore vu en jeu.
+
+## v0.24.1 (2026-10-04) : retours de Lekinox sur la vague 1
+- Coffre de test séparé par mod : `wl_chest` ne contient plus que Wildlife ; il pose autant de coffres 8 x 6 que
+  nécessaire, côte à côte (page dans le ZDO). Legendary Weapons a son `lw_chest` (v0.7.3, TestChest.cs).
+- Grenouilles « trop petites » et « animations de déplacement qui ne se déclenchent pas » : à 0,23 m et 4 sauts/s
+  d'à peine 4 cm de haut, elle semblait glisser. Désormais 0,42 m (Scale 1, Length 0,42), 1,2-2,6 sauts/s,
+  arc du clip étiré selon la longueur du bond (35 %, max HopHeight 0,4 m). Log « Frog hopping » au premier bond.
+- Lucioles : attrapables 1,5 m plus loin (GetHoverOffset).
+
+## v0.24.2 (2026-10-04) : grenouille, membres qui bougent enfin (workflow vidéo)
+- Retour de Lekinox : « les membres ne bougent jamais », grenouille trop petite. Taille : Scale 1,3, Length 0,45 (~0,58 m).
+- Lab (Lab.cs) : rend désormais les clips .rig joués par code (FrogAnim implémente IProcAnimated, Frog_rig_<clip>.png),
+  tools/lab_to_mp4.py en fait des MP4. Constat dans le moteur : le saut ne bougeait que les bras.
+- Cause : squelette et poids. Articulations replacées sur la vraie géométrie (hanche dans la cuisse, genou au pli
+  arrière, cheville, orteils ; épaule haute, poignet au sol). Poids des membres par « enveloppes » : distance au
+  segment de l'os moins son épaisseur, mesurée le long de la surface (Dijkstra, sommets des coutures UV recollés),
+  un seul membre par sommet, ce qui est à plat au sol hors du milieu va aux membres. Les poids automatiques de
+  Blender (bone heat) échouaient sur ce maillage (la cuisse prenait l'œil).
+- Le maillage généré soudait les bouts des orteils arrière aux mains, un pied au ventre, les doigts au menton :
+  198 triangles de soudure coupés (sous la grenouille), 4 îlots retirés ; talon/cuisse et aisselle non coupés mais
+  lissés (sinon des trous). frog.tam = maillage coupé, frog_uncut.tam = source.
+- Clips : saut avec vraie détente (cuisse +25, jambe +70, pied +50, pattes tendues en vol, repli avant l'atterrissage) ;
+  nage en vrai coup de pattes (repli, détente écartée, glisse bras plaqués, retour lent).
+- Évaluateur : hop 7,6, swim 7,6 (breathe 7,5, croak 7,8 inchangés). Vérifié aussi dans le rendu du moteur.
+
+## v0.24.3 (2026-10-04)
+- Sauts plus hauts et plus longs : 0,9-1,6 bond/s, HopDistance 0,9, arc jusqu'à 45 % de la longueur, HopHeight 1 m
+  (un bond de fuite ≈ 2,5-3 m de long, 1 m de haut).
+- Paix avec le vanilla : les grenouilles manquaient dans Interactions.IsOurs (FrogAnim.All ajouté).
+- `ta_census [range]` : compte créatures, ragdolls et cadavres autour du joueur (log). Test piloté (monde
+  Laboratory, killall) : cadavres de grenouilles et de mulots partis en 12 s comme prévu ; Lekinox ne voit plus de
+  souci de cadavres persistants (« ça doit être ok »).
