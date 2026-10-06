@@ -28,6 +28,35 @@ namespace LegendaryWeapons
 
         private static Call s_call;
         private static ZRoutedRpc s_rpcInstance;
+        private static float s_cooldownUntil = -1f;
+        private static SE_Stats s_rest;
+
+        /// <summary>The cooldown after a strike, shown discreetly as a status icon with its timer.</summary>
+        public static void Register(Sprite icon)
+        {
+            s_rest = ScriptableObject.CreateInstance<SE_Stats>();
+            s_rest.name = "SE_LW_StormRest";
+            s_rest.m_name = "$se_spearthunder_rest";
+            s_rest.m_tooltip = "$se_spearthunder_rest_tooltip";
+            s_rest.m_icon = icon;
+            s_rest.m_ttl = Plugin.CallCooldown.Value;
+            Jotunn.Managers.ItemManager.Instance.AddStatusEffect(new Jotunn.Entities.CustomStatusEffect(s_rest, false));
+        }
+
+        /// <summary>The storm can be called again (CallCooldown seconds after the last strike).</summary>
+        public static bool Ready => Time.time >= s_cooldownUntil;
+
+        internal static void ResetCooldown() => s_cooldownUntil = -1f;
+
+        private static void StartCooldown(Player p)
+        {
+            s_cooldownUntil = Time.time + Plugin.CallCooldown.Value;
+            if (s_rest != null && p != null)
+            {
+                s_rest.m_ttl = Plugin.CallCooldown.Value;
+                p.GetSEMan().AddStatusEffect(s_rest, true);
+            }
+        }
 
         public static bool IsPending(Character owner)
         {
@@ -39,7 +68,7 @@ namespace LegendaryWeapons
             var weapon = p.GetCurrentWeapon();
             if (weapon == null || weapon.m_shared.m_name != Plugin.SpearToken)
                 return;
-            if (s_call != null || p.IsDead())
+            if (s_call != null || p.IsDead() || !Ready)
                 return;
             var call = new Call
             {
@@ -88,6 +117,7 @@ namespace LegendaryWeapons
             {
                 // Never thrown: the bolt finds the spear in the thrower's hand.
                 Strike(call, SpearPosition(call.Owner), true);
+                StartCooldown(call.Owner);
             }
             else if (spear.IsFlying && Time.time < call.Due + MaxWaitForLanding)
             {
@@ -97,6 +127,7 @@ namespace LegendaryWeapons
             {
                 Strike(call, spear.transform.position, false);
                 spear.OnStruck();
+                StartCooldown(call.Owner);
             }
             End();
         }
@@ -132,12 +163,18 @@ namespace LegendaryWeapons
                     continue;
                 done.Add(c);
 
+                // full damage within 1 m of the impact, then falling off linearly to StrikeEdgeDamage at the edge
+                // (distance to the nearest point of the body, so a big creature at the edge still counts as close)
+                bool convex = !(col is MeshCollider mc) || mc.convex;     // ClosestPoint needs a convex collider
+                float dist = Vector3.Distance(convex ? col.ClosestPoint(point) : c.GetCenterPoint(), point);
+                float u = Mathf.Clamp01((dist - 1f) / Mathf.Max(0.1f, Plugin.StrikeRadius.Value - 1f));
+                float share = Mathf.Lerp(1f, Plugin.StrikeEdgeDamage.Value, u);
                 var hit = new HitData();
-                hit.m_damage.m_lightning = damage;
+                hit.m_damage.m_lightning = damage * share;
                 hit.m_point = c.GetCenterPoint();
                 Vector3 away = Vector3.ProjectOnPlane(c.transform.position - point, Vector3.up);
                 hit.m_dir = away.sqrMagnitude > 0.01f ? away.normalized : Vector3.down;
-                hit.m_pushForce = Plugin.StrikePush.Value;
+                hit.m_pushForce = Plugin.StrikePush.Value * share;
                 hit.m_dodgeable = false;
                 hit.m_blockable = false;
                 hit.m_ranged = true;
@@ -153,10 +190,12 @@ namespace LegendaryWeapons
                     hit.m_skill = Skills.SkillType.Spears;
                 }
                 c.Damage(hit);
+                Plugin.Log.LogDebug("  " + c.name + " at " + dist.ToString("F1") + " m: " + (damage * share).ToString("F0") + " lightning");
             }
 
             Plugin.Log.LogInfo("Lightning strike " + (onThrower ? "on the thrower" : "on the spear") + ": " +
-                               done.Count + " hit, " + damage + " lightning");
+                               done.Count + " hit, " + damage + " lightning at the centre, " +
+                               (damage * Plugin.StrikeEdgeDamage.Value) + " at " + Plugin.StrikeRadius.Value + " m");
             if (onThrower)
                 call.Owner.Message(MessageHud.MessageType.Center, "$msg_thunderspear_self");
         }
@@ -205,6 +244,7 @@ namespace LegendaryWeapons
             bolt.Build(point);
             Sfx.Play(Sfx.Strike, point, null);
             Sparks(point);
+            StrikeArea.Spawn(point, Plugin.StrikeRadius.Value, BoltMaterial());
             Destroy(go, Lifetime);
         }
 
@@ -339,7 +379,7 @@ namespace LegendaryWeapons
             shape.shapeType = ParticleSystemShapeType.Hemisphere;
             shape.radius = 0.3f;
             var r = go.GetComponent<ParticleSystemRenderer>();
-            r.sharedMaterial = BoltMaterial();
+            r.sharedMaterial = Fx.Soft;
             r.renderMode = ParticleSystemRenderMode.Stretch;
             r.velocityScale = 0.04f;
             r.lengthScale = 1f;

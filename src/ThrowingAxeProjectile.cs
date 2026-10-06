@@ -120,6 +120,26 @@ namespace LegendaryWeapons
                 Plugin.Log.LogDebug("Visual extents " + e + ", thin axis " + thin);
             }
             _visual = pivot;
+            GoldTrail();
+        }
+
+        /// <summary>A short golden trail behind the axe in flight (from its centre, not its spinning edge).</summary>
+        private void GoldTrail()
+        {
+            var go = new GameObject("gold_trail");
+            go.transform.SetParent(transform, false);
+            var tr = go.AddComponent<TrailRenderer>();
+            tr.sharedMaterial = Fx.Soft;
+            tr.time = 0.22f;
+            tr.minVertexDistance = 0.05f;
+            tr.widthCurve = new AnimationCurve(new Keyframe(0f, 0.16f), new Keyframe(1f, 0f));
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.86f, 0.4f), 0f), new GradientColorKey(new Color(1f, 0.6f, 0.15f), 1f) },
+                new[] { new GradientAlphaKey(0.75f, 0f), new GradientAlphaKey(0f, 1f) });
+            tr.colorGradient = g;
+            tr.textureMode = LineTextureMode.Stretch;
+            tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            tr.receiveShadows = false;
         }
 
         private void Update()

@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <Reference Include="assembly_valheim"><HintPath>$(Managed)\assembly_valheim.dll</HintPath></Reference>
+    <Reference Include="SoftReferenceableAssets"><HintPath>$(Managed)\SoftReferenceableAssets.dll</HintPath></Reference>
     <Reference Include="assembly_utils"><HintPath>$(Managed)\assembly_utils.dll</HintPath></Reference>
     <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(Managed)\UnityEngine.CoreModule.dll</HintPath></Reference>
@@ -36,6 +37,7 @@
     <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(Managed)\UnityEngine.AssetBundleModule.dll</HintPath></Reference>
     <Reference Include="UnityEngine.ParticleSystemModule"><HintPath>$(Managed)\UnityEngine.ParticleSystemModule.dll</HintPath></Reference>
     <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(Managed)\UnityEngine.InputLegacyModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(Managed)\UnityEngine.UI.dll</HintPath></Reference>
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(Managed)\UnityEngine.PhysicsModule.dll</HintPath></Reference>
     <Reference Include="BepInEx"><HintPath>$(Vendor)\bepinex\BepInExPack_Valheim\BepInEx\core\BepInEx.dll</HintPath></Reference>
     <Reference Include="0Harmony"><HintPath>$(Vendor)\bepinex\BepInExPack_Valheim\BepInEx\core\0Harmony.dll</HintPath></Reference>

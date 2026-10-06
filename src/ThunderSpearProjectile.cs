@@ -98,6 +98,9 @@ namespace LegendaryWeapons
             Vector3 e = b.extents;
             Vector3 axis = e.x >= e.y && e.x >= e.z ? Vector3.right : (e.y >= e.z ? Vector3.up : Vector3.forward);
             float lean = Vector3.Dot(b.center, axis);
+            // our own model knows where its head is (WeaponModels); the vanilla look leans to the tip
+            if (WeaponModels.Heads.TryGetValue(Plugin.SpearPrefab, out var head))
+                lean = Vector3.Dot(head, axis);
             if (Plugin.SpearFlipVisual.Value) lean = -lean;
             Vector3 tipDir = lean >= 0f ? axis : -axis;
             Quaternion rot = Quaternion.Euler(Plugin.SpearVisualTilt.Value) * Quaternion.FromToRotation(tipDir, Vector3.forward);
