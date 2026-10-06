@@ -719,3 +719,8 @@ chacun avec son modèle, 3 recettes, des sons synthétisés évalués, des anima
 - `ta_census [range]` : compte créatures, ragdolls et cadavres autour du joueur (log). Test piloté (monde
   Laboratory, killall) : cadavres de grenouilles et de mulots partis en 12 s comme prévu ; Lekinox ne voit plus de
   souci de cadavres persistants (« ça doit être ok »).
+
+## v0.25.0 (2026-10-06) : identité publique
+- Toute référence personnelle retirée (nom, e-mail, chemins du PC) : tout est Lekinox / Lekiteam, historique git
+  compris. Le GUID devient lekinox.wildlife : le fichier de config change de nom (BepInEx/config/lekinox.wildlife.cfg ; les
+  réglages locaux ont été recopiés depuis l'ancien fichier). En multijoueur, tout le monde doit avoir cette version.
