@@ -621,3 +621,8 @@ mellow-napping-stonebraker). Choix de Lekinox : « Braise gardienne » avec un d
   particules ; la lance : une rafale de 5 arcs). Rien pendant la recharge : l'aura reste le minuteur.
 - Braise-gardienne : quand le dôme s'éteint (ou qu'on reprend l'épée avant), ses braises se détachent de la paroi
   et retombent doucement en pluie en s'assombrissant (hémisphère, 350/s pendant 1,2 s, 2,5 à 4 s de vie).
+
+## v0.14.0 (2026-10-06) : identité publique
+- Toute référence personnelle retirée (nom, e-mail, chemins du PC) : tout est Lekinox / Lekiteam, historique git
+  compris. Le GUID devient lekinox.legendaryweapons : le fichier de config change de nom (BepInEx/config/lekinox.legendaryweapons.cfg ; les
+  réglages locaux ont été recopiés depuis l'ancien fichier). En multijoueur, tout le monde doit avoir cette version.

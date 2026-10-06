@@ -8,6 +8,10 @@
     <Nullable>disable</Nullable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- no local paths in the shipped DLL: no PDB reference, deterministic, source paths mapped -->
+    <DebugType>none</DebugType>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=.</PathMap>
     <!-- Override on the command line: dotnet build -p:ValheimDir="D:\Games\Valheim" -->
     <ValheimDir Condition="'$(ValheimDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimDir>
     <Managed>$(ValheimDir)\valheim_Data\Managed</Managed>

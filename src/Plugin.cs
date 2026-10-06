@@ -41,7 +41,7 @@ namespace LegendaryWeapons
     public class Plugin : BaseUnityPlugin
     {
         public const string Guid = "lekinox.legendaryweapons";
-        public const string Version = "0.13.5";
+        public const string Version = "0.14.0";
         public const string ItemPrefab = "AxeThrowing";     // unchanged: axes already in inventories keep working
         public const string ItemToken = "$item_axethrowing";
         public const string SpearPrefab = "SpearThunder";
