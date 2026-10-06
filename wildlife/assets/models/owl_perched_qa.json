@@ -1,0 +1,37 @@
+{
+ "breathe": {
+  "seconds": 3.2,
+  "max_edge_stretch": 1.079,
+  "min_edge_squash": 0.923,
+  "max_flipped_triangles": 0,
+  "triangles": 4646
+ },
+ "look": {
+  "seconds": 3.0,
+  "max_edge_stretch": 2.357,
+  "min_edge_squash": 0.31,
+  "max_flipped_triangles": 7,
+  "triangles": 4646
+ },
+ "tilt": {
+  "seconds": 2.6,
+  "max_edge_stretch": 1.826,
+  "min_edge_squash": 0.237,
+  "max_flipped_triangles": 0,
+  "triangles": 4646
+ },
+ "bob": {
+  "seconds": 2.6,
+  "max_edge_stretch": 1.707,
+  "min_edge_squash": 0.401,
+  "max_flipped_triangles": 0,
+  "triangles": 4646
+ },
+ "ruffle": {
+  "seconds": 2.2,
+  "max_edge_stretch": 2.447,
+  "min_edge_squash": 0.485,
+  "max_flipped_triangles": 1,
+  "triangles": 4646
+ }
+}
