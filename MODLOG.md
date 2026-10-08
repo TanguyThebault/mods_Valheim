@@ -96,3 +96,7 @@ verrouillée). Config : `BepInEx/config/lekinox.pipicacamod.cfg` (rechargée à 
   le sol (SquatPitch -62°), vitesse x0,45 (SquatSpeed), un peu plus dispersé ; la souris ne fait que l'orienter de
   ±15° ; pas d'IK de la main ni d'arme cachée. `[Pee] Pose` = Auto / Standing / Squatting. Posture publiée dans le ZDO
   (caca_pee_squat) pour les autres joueurs. Son du pipi 0,3 -> 0,2. À vérifier en jeu (pose et point de départ).
+
+## 0.5.1 (2026-10-08)
+- Pipi plus long : `DrainSeconds` 6 -> 10 (100 % en 10 s, 50 % en 5 s), cfg live mis à jour aussi.
+- README : images en URL absolues raw.githubusercontent.com (monorepo mods_Valheim/pipi-caca/media), pour Thunderstore.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+- **Longer pee:** a full bladder now takes 10 s to empty (5 s from 50 %), up from 6 s (`DrainSeconds`).
+- **README:** the screenshots now load from GitHub, so they also show on Thunderstore and in mod managers.
+
 ## 0.5.0
 - **Female characters squat to pee:**
   - She can still shuffle along crouched.
