@@ -3,7 +3,7 @@
 Your Viking has needs. Valheim gains three bodily functions: poop, pee and farts. It's silly, it's
 synthesised, and it's surprisingly physical.
 
-![A Viking peeing into a river from a rock](media/pipi1.png)
+![A Viking peeing into a river from a rock](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/pipi1.jpg)
 
 ## What it adds
 - **Poop.** Eating fills a hidden urge, digested little by little (bigger meals, more urge).
@@ -12,7 +12,7 @@ synthesised, and it's surprisingly physical.
   - The poop lands right behind you, and you can pick it up (E)... and throw it. It bursts into a brown splash
     on impact.
 
-  ![Squatting for a poop between standing stones](media/caca1.png)
+  ![Squatting for a poop between standing stones](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/caca1.jpg)
 
 - **Pee.** A second urge that fills on its own, slowly (full in about an hour by default).
   - From half-way: *Need to pee [L]*. Press **L** to go, and **L** again to stop early. At 100 % it starts by
@@ -23,9 +23,9 @@ synthesised, and it's surprisingly physical.
     mouse nudges it sideways. Set `Pose` to force one or the other.
   - The stream is simulated: drops fly with gravity and your own speed, and bend when you turn. They splash on the
     ground, buildings, creatures or water, and leave wet patches that dry in a minute.
-  - Strength follows the urge: a strong arc at first, dribbles at the end. 100 % empties in 6 seconds.
+  - Strength follows the urge: a strong arc at first, dribbles at the end. 100 % empties in 10 seconds (50 % in 5).
 
-  ![Peeing on a runestone](media/pipi2.png)
+  ![Peeing on a runestone](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/pipi2.jpg)
 
 - **Farts.** A hidden gauge, no status effect and no animation. It fills over time and with each meal. When it's
   full, your Viking lets one go: just the sound and a faint cloud of gas.
@@ -56,7 +56,7 @@ without the mod. Poop items left in the world or in your inventory disappear.
 | General | `EnablePoop`, `EnablePee`, `EnableFarts`, `UrgentAt` (85 %: the status turns urgent and flashes) |
 | Controls | `Key` (K), `PeeKey` (L) |
 | Urge (poop) | `MinNeed` (50 %), `DigestPerMinute`, `NeedPerFoodHealth`, `Volume` (sounds) |
-| Pee | `MinNeed` (50 %), `FillPerMinute` (1.5 = about 1 h 07), `DrainSeconds` (6), `MinSpeed`, `MaxSpeed`, `AimLift`, `Volume`, `WetPatches`, `Pose` (Auto / Standing / Squatting), `SquatPitch`, `SquatSpeed` |
+| Pee | `MinNeed` (50 %), `FillPerMinute` (1.5 = about 1 h 07), `DrainSeconds` (10), `MinSpeed`, `MaxSpeed`, `AimLift`, `Volume`, `WetPatches`, `Pose` (Auto / Standing / Squatting), `SquatPitch`, `SquatSpeed` |
 | Farts | `FillPerMinute` (3.03 = every 33 min), `PerMeal`, `Cloud`, `CloudOpacity` |
 | Tuning | the hand pose and the stream's origin (`WristOffset`, `FingerDir`, `FingerCurl`, `TipFromHand`, `SquatTipOffset`), the poop in the hand (`HeldPos`, `HeldRot`) |
 | Debug | `ShowBars` (the three gauges as bars), `Lab` (test hook) |

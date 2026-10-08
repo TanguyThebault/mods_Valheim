@@ -27,7 +27,7 @@ namespace Caca
     {
         public const string Guid = "lekinox.pipicacamod";
         public const string ModName = "Pipi + Caca Mod";
-        public const string Version = "0.5.0";
+        public const string Version = "0.5.1";
         public const string ItemName = "Caca";
 
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -73,7 +73,7 @@ namespace Caca
             LabEnabled = Config.Bind("Debug", "Lab", false, "Test hook: run the lines of plugins/Caca/lab/request.txt (console commands, camera renders).");
             PeeMinNeed = Config.Bind("Pee", "MinNeed", 50f, "Urge (%) from which the status effect shows and you can pee on command. At 100 % it starts on its own.");
             PeeFillPerMinute = Config.Bind("Pee", "FillPerMinute", 1.5f, "How fast the pee urge fills on its own (% per minute; 1.5 = full in about 1 h 07).");
-            PeeDrainSeconds = Config.Bind("Pee", "DrainSeconds", 6f, "Seconds to go from 100 % to 0 % while peeing.");
+            PeeDrainSeconds = Config.Bind("Pee", "DrainSeconds", 10f, "Seconds to go from 100 % to 0 % while peeing.");
             PeeMinSpeed = Config.Bind("Pee", "MinSpeed", 1.2f, "Stream speed (m/s) when almost empty.");
             PeeMaxSpeed = Config.Bind("Pee", "MaxSpeed", 6.5f, "Stream speed (m/s) at full urge.");
             PeeAimLift = Config.Bind("Pee", "AimLift", 12f, "Degrees added to the camera pitch (looking straight ahead gives an arc).");
