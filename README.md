@@ -3,7 +3,7 @@
 Your Viking has needs. Valheim gains three bodily functions: poop, pee and farts. It's silly, it's
 synthesised, and it's surprisingly physical.
 
-![A Viking peeing into a river from a rock](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/pipi1.jpg)
+![A Viking peeing into a river from a rock](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/pipi1.png)
 
 ## What it adds
 - **Poop.** Eating fills a hidden urge, digested little by little (bigger meals, more urge).
@@ -12,7 +12,7 @@ synthesised, and it's surprisingly physical.
   - The poop lands right behind you, and you can pick it up (E)... and throw it. It bursts into a brown splash
     on impact.
 
-  ![Squatting for a poop between standing stones](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/caca1.jpg)
+  ![Squatting for a poop between standing stones](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/caca1.png)
 
 - **Pee.** A second urge that fills on its own, slowly (full in about an hour by default).
   - From half-way: *Need to pee [L]*. Press **L** to go, and **L** again to stop early. At 100 % it starts by
@@ -25,7 +25,7 @@ synthesised, and it's surprisingly physical.
     ground, buildings, creatures or water, and leave wet patches that dry in a minute.
   - Strength follows the urge: a strong arc at first, dribbles at the end. 100 % empties in 10 seconds (50 % in 5).
 
-  ![Peeing on a runestone](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/pipi2.jpg)
+  ![Peeing on a runestone](https://raw.githubusercontent.com/TanguyThebault/mods_Valheim/main/pipi-caca/media/pipi2.png)
 
 - **Farts.** A hidden gauge, no status effect and no animation. It fills over time and with each meal. When it's
   full, your Viking lets one go: just the sound and a faint cloud of gas.
