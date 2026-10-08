@@ -100,3 +100,4 @@ verrouillée). Config : `BepInEx/config/lekinox.pipicacamod.cfg` (rechargée à 
 ## 0.5.1 (2026-10-08)
 - Pipi plus long : `DrainSeconds` 6 -> 10 (100 % en 10 s, 50 % en 5 s), cfg live mis à jour aussi.
 - README : images en URL absolues raw.githubusercontent.com (monorepo mods_Valheim/pipi-caca/media), pour Thunderstore.
+- Media gardés en .png (liens Thunderstore inchangés) : 960 px, palette 256 couleurs, 4,3 Mo -> 0,94 Mo.
